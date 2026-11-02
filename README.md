@@ -35,7 +35,9 @@ npm run dev -- --host localhost --port 5173
 
 ## 在线体验与部署
 
-公开体验站采用 **单独的服务端 Key + 限量邀请**。测试 Key 不提供给体验者，也不自动用于正式部署。当前线上地址及实际验证状态见 [发布验证记录](docs/release-validation.md)；没有完成验证的环境不会标为可用。
+在线邀请测试：https://patentflow-ai.patentflow-ai.workers.dev/ （需要维护者提供的邀请码，目前使用临时测试配置）。
+
+公开体验站采用 **服务端 Key + 限量邀请**。Key 不提供给体验者；当前邀请测试经过维护者明确授权使用测试配置，正式运营前应替换为专用正式 Key。实际验证状态见 [发布验证记录](docs/release-validation.md)。
 
 完整产品需要后端。仅把 `dist` 放在 GitHub Pages 不能运行模型、搜索或 Agent API。推荐将前端静态资源和 `/api/*` 一起部署到 Cloudflare Worker，详见 [Cloudflare 部署说明](docs/cloudflare-deploy.md)。免费托管额度不包含模型和搜索费用，也不保证长文生成一定满足免费 CPU 限额。
 

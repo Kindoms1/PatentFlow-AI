@@ -12,7 +12,7 @@ const COOKIE = "pf_session";
 const enc = new TextEncoder();
 export const SECURITY: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
-  "Referrer-Policy": "no-referrer",
+  "Referrer-Policy": "same-origin",
   "X-Frame-Options": "DENY",
 };
 

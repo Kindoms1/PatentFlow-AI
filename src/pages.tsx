@@ -437,6 +437,7 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [localDetail, setLocalDetail] = useState("正在读取 CC Switch 配置。");
   const [busy, setBusy] = useState("");
   const [ready, setReady] = useState(false);
+  const managedOnly = providers.length > 0 && providers.every((item) => item.managed);
 
   const reload = async () => {
     setProviders(await listProviders());
@@ -451,9 +452,10 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
   };
 
   useEffect(() => {
+    if (!ready || managedOnly) return;
     const timer = window.setTimeout(loadLocal, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [ready, managedOnly]);
 
   useEffect(() => {
     let cancelled = false;
@@ -478,10 +480,10 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
         <>
           <p className="kicker">模型</p>
           <h1>模型与工具</h1>
-          <p className="lede">提供方按 OpenAI 协议和 Claude 协议分开。密钥只保存在服务端，页面只显示末四位。</p>
+          <p className="lede">{managedOnly ? "模型和检索服务由管理员统一配置，当前页面只读。" : "提供方按 OpenAI 协议和 Claude 协议分开。密钥只保存在服务端，页面只显示末四位。"}</p>
         </>
       )}
-      <CcSwitchShelf
+      {ready && !managedOnly ? <CcSwitchShelf
         local={local}
         detail={localDetail}
         busy={busy}
@@ -502,7 +504,8 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
             void reload();
           });
         }}
-      />
+      /> : null}
+      {managedOnly ? <p className="fine">模型和检索服务由管理员统一配置。如需调整，请联系管理员。</p> : null}
       {ready ? (
         <>
           <ProviderGroup title="OpenAI 协议" items={openai} busy={busy} setBusy={setBusy} reload={reload} notify={notify} />
@@ -512,7 +515,7 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
       ) : (
         <p className="fine">正在读取已配置的模型。</p>
       )}
-      <ImportPanel onImported={() => void reload()} />
+      {ready && !managedOnly ? <ImportPanel onImported={() => void reload()} /> : null}
     </div>
   );
 }
@@ -526,12 +529,12 @@ function ProviderGroup({ title, items, busy, setBusy, reload, notify }: { title:
         <article key={item.id} className="panel">
           <header className="panel-head">
             <h2 className="provider-title"><VendorMark icon={item.icon} name={item.name} model={item.model} website={item.website} color={item.iconColor} />{item.name}</h2>
-            <span className={item.hasKey ? "judge judge-明确包含" : "judge judge-待确认"}>{item.hasKey ? "密钥已就位" : "缺少密钥"}</span>
+            <span className={item.hasKey ? "judge judge-明确包含" : "judge judge-待确认"}>{item.managed ? item.hasKey ? "管理员已配置" : "待管理员配置" : item.hasKey ? "密钥已就位" : "缺少密钥"}</span>
           </header>
           <p>{item.role === "search" ? "检索工具" : item.protocol === "openai" ? "OpenAI 协议" : "Claude 协议"}{item.active ? " · 当前模型" : ""}</p>
-          <p className="fine">{item.website || "未填网站"} · {item.baseUrl || "未填接口"}{item.model ? ` · ${item.model}` : ""}</p>
-          <p className="fine">{item.keyHint}</p>
-          <div className="composer-bar">
+          <p className="fine">{item.managed ? "由管理员统一配置（只读）" : `${item.website || "未填网站"} · ${item.baseUrl || "未填接口"}`}{item.model ? ` · ${item.model}` : ""}</p>
+          {!item.managed ? <p className="fine">{item.keyHint}</p> : null}
+          {!item.managed ? <div className="composer-bar">
             {item.role === "model" ? (
               <button
                 className="btn ghost"
@@ -573,7 +576,7 @@ function ProviderGroup({ title, items, busy, setBusy, reload, notify }: { title:
                 移出
               </button>
             ) : null}
-          </div>
+          </div> : null}
         </article>
       ))}
     </section>
@@ -624,7 +627,7 @@ export function SettingsPage() {
     <div className="page page-narrow settings-page">
       <p className="kicker">设置</p>
       <h1>模型与数据</h1>
-      <p className="lede">在这里切换和导入模型。知识库在左侧书本图标里，可以上传后一起载入对话。</p>
+      <p className="lede">在这里查看模型与服务配置。知识库在左侧书本图标里，可以上传后一起载入对话。</p>
       <ModelsPage embedded />
       <article className="panel">
         <h2>知识库</h2>

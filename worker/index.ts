@@ -4,11 +4,12 @@
  * The /api handlers are the same code the Vite dev server runs (server/agent-routes.ts),
  * reached through a small IncomingMessage/ServerResponse shim.
  */
-import { handleAgentRoute } from "../server/agent-routes.ts";
+import { cleanMessages, handleAgentRoute } from "../server/agent-routes.ts";
 import { inferVendor, vendorColor } from "../src/vendor.ts";
 import { SECURITY, checkCode, clearCookie, gateConfigured, gatePage, issueCookie, redirect, session } from "./gate.ts";
 import type { GateEnv } from "./gate.ts";
 import { RateLimiter } from "./rate-limit.ts";
+import { acceptsEventStream, proxyAgentStream } from "./stream-proxy.ts";
 
 interface Env extends GateEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
@@ -139,6 +140,7 @@ function publicProviders(env: Env) {
         hasKey: Boolean(provider.secret),
         keyHint: provider.secret ? "已由管理员在服务端配置" : "未配置密钥",
         active: provider.role === "model" && provider.id === store.activeModelId,
+        managed: true,
       };
     }),
   };
@@ -298,6 +300,14 @@ async function api(request: Request, path: string, who: string, env: Env, ctx: C
   if (buffer instanceof Response) return buffer;
   const body = sanitize(new TextDecoder().decode(buffer), env);
   if (body === null) return json(400, { error: "请求格式不对。" });
+  if (path === "/api/agent" && acceptsEventStream(request.headers.get("Accept"))) {
+    const parsed = JSON.parse(body) as Record<string, unknown>;
+    if (parsed.tools === false) {
+      const store = storeFromEnv(env);
+      const provider = store.providers.find((item) => item.id === store.activeModelId)!;
+      return proxyAgentStream({ provider, searchSecret: env.ANYSEARCH_API_KEY, messages: cleanMessages(parsed.messages), maxTokens: parsed.maxTokens as number, signal: request.signal });
+    }
+  }
   return runRoute(path, body, env, ctx, request.signal);
 }
 

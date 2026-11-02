@@ -12,6 +12,8 @@ export interface PublicProvider {
   hasKey: boolean;
   keyHint: string;
   active: boolean;
+  /** Hosted providers are configured by the administrator and are read-only. */
+  managed?: boolean;
 }
 
 export interface CcLocalProvider {

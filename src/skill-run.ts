@@ -59,7 +59,7 @@ async function askModel(
       maxSteps: tools ? (intent === "create" ? 8 : 4) : 1,
       // 一句话创作要查专利、论文和行业痛点，给 6 次检索；其余意图 4 次。
       maxSearches: intent === "create" ? 6 : 4,
-      ...(intent === "draft" || intent === "revise" ? { maxTokens: 12000 } : intent === "outline" || intent === "create" ? { maxTokens: 6000 } : {}),
+      ...(intent === "draft" || intent === "revise" ? { maxTokens: 24000 } : intent === "outline" || intent === "create" ? { maxTokens: 6000 } : {}),
     },
     (event) => {
       const line = traceForEvent(event);

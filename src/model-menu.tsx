@@ -20,6 +20,7 @@ export function ModelMenu({
   const [adding, setAdding] = useState<"off" | "import" | "manual">("off");
   const [busy, setBusy] = useState("");
   const models = providers.filter((item) => item.role === "model");
+  const managedOnly = providers.length > 0 && providers.every((item) => item.managed);
 
   const loadLocal = () => {
     void listCcSwitch().then((found) => {
@@ -29,13 +30,15 @@ export function ModelMenu({
   };
 
   useEffect(() => {
+    if (managedOnly) return;
     const timer = window.setTimeout(loadLocal, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [managedOnly]);
 
   // One click on a provider card uses its current model, or the first listed model when none is set yet.
   // The chips under the card are only for switching to a different model of the same provider.
   const pickSaved = (item: PublicProvider, model?: string) => {
+    if (item.managed) return;
     const target = model || item.model || item.models?.[0] || "";
     if (item.active && target === item.model) {
       onChanged();
@@ -76,21 +79,21 @@ export function ModelMenu({
         <div
           key={item.id}
           className={item.active ? "model-block active" : "model-block"}
-          title="点整张卡片即用默认模型；要换模型再点下面的标签"
+          title={item.managed ? "由管理员统一配置（只读）" : "点整张卡片即用默认模型；要换模型再点下面的标签"}
           onClick={(event) => {
             if ((event.target as HTMLElement).closest("button")) return;
             pickSaved(item);
           }}
         >
-          <button type="button" className={item.active ? "model-row active" : "model-row"} onClick={() => pickSaved(item)}>
+          <button type="button" className={item.active ? "model-row active" : "model-row"} disabled={item.managed} onClick={() => pickSaved(item)}>
             <VendorMark icon={item.icon} name={item.name} model={item.model} website={item.website} color={item.iconColor} />
             <span>
               <b>{item.model || item.name}</b>
               <small>{item.name} · {item.protocol === "claude" ? "Claude" : "OpenAI"}</small>
             </span>
-            <em>{busy.startsWith(item.id) ? "切换中" : item.active ? "使用中" : "一键选用"}</em>
+            <em>{item.managed ? "管理员配置" : busy.startsWith(item.id) ? "切换中" : item.active ? "使用中" : "一键选用"}</em>
           </button>
-          {(item.models ?? []).length > 1 ? (
+          {!item.managed && (item.models ?? []).length > 1 ? (
             <div className="model-chips">
               {item.models?.map((model) => (
                 <button
@@ -107,11 +110,13 @@ export function ModelMenu({
           ) : null}
         </div>
       ))}
-      <CcSwitchShelf local={local} detail={detail} busy={busy} onRefresh={loadLocal} onUse={useLocal} />
-      <button type="button" className="add-model" onClick={() => setAdding((value) => (value === "import" ? "off" : "import"))}>粘贴 CC Switch 链接</button>
-      {compactImport ? <button type="button" className="add-model" onClick={() => setAdding((value) => (value === "manual" ? "off" : "manual"))}>手动填写</button> : null}
-      {adding === "import" ? <ImportPanel compact={compactImport} onImported={onChanged} /> : null}
-      {adding === "manual" ? <ManualAdd onChanged={onChanged} /> : null}
+      {managedOnly ? <p className="fine">模型由管理员统一配置。如需更换，请联系管理员。</p> : <>
+        <CcSwitchShelf local={local} detail={detail} busy={busy} onRefresh={loadLocal} onUse={useLocal} />
+        <button type="button" className="add-model" onClick={() => setAdding((value) => (value === "import" ? "off" : "import"))}>粘贴 CC Switch 链接</button>
+        {compactImport ? <button type="button" className="add-model" onClick={() => setAdding((value) => (value === "manual" ? "off" : "manual"))}>手动填写</button> : null}
+        {adding === "import" ? <ImportPanel compact={compactImport} onImported={onChanged} /> : null}
+        {adding === "manual" ? <ManualAdd onChanged={onChanged} /> : null}
+      </>}
     </div>
   );
 }

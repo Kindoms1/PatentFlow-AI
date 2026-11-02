@@ -98,13 +98,40 @@ export function detectCreateRequest(text: string): boolean {
  * 同时要求写交底书、挖点、起草的，仍按原来的技能处理。
  */
 const READ_PATTERN =
-  /(?:总结|概括|归纳|摘要|解读|讲解|梳理|提炼|读一下|读懂|讲讲|介绍一下|说明一下|主要内容|讲了什么|说了什么|第\s*\d+\s*[节章])|\b(?:summari[sz]e|summary|explain|overview|tl;?dr|walk me through|key (?:points|findings|contributions)|what (?:does|did) (?:the|this) (?:paper|document|article|section)|section\s*\d+(?:\.\d+)*)\b/i;
+  /(?:阅读|概述|总结|概括|归纳|摘要|解读|讲解|梳理|提炼|读一下|读懂|讲讲|介绍一下|说明一下|主要内容|讲了什么|说了什么|第\s*\d+\s*[节章])|\b(?:summari[sz]e|summary|explain|overview|tl;?dr|walk me through|key (?:points|findings|contributions)|what (?:does|did) (?:the|this) (?:paper|document|article|section)|section\s*\d+(?:\.\d+)*)\b/i;
 const WRITE_PATTERN = /(?:写|撰写|起草|生成|挖掘|挖点|发明点|交底书|申请文件|专利稿|发明稿|权利要求书)|\b(?:draft|write|patent application)\b/i;
+
+function negatesWriting(prefix: string): boolean {
+  if (/(?:不能不|不得不|不要不|并非不|不是不)\s*$/.test(prefix)) return false;
+  return /(?:不要|不必|不用|不需要|无需|无须|别|勿|不)(?:\s*(?:再|先|继续|重新|帮我|替我|给我|为我|进行))*\s*$/.test(prefix);
+}
+
+function hasPositiveWriting(text: string): boolean {
+  return text.split(/[，,。；;！？!?\n]|但是?|不过|然而|而是|然后|随后|接着/).some((clause) => {
+    if (!WRITE_PATTERN.test(clause)) return false;
+    const actions = [...clause.matchAll(/撰写|改写|起草|生成|挖掘|挖点|写|\b(?:draft|write)\b/gi)];
+    if (!actions.length) {
+      const target = WRITE_PATTERN.exec(clause)!;
+      return !negatesWriting(clause.slice(0, target.index));
+    }
+    let previousEnd = 0;
+    let negated = false;
+    for (const action of actions) {
+      const prefix = clause.slice(previousEnd, action.index);
+      // “不要生成全文或起草权利要求” shares a negation, but a new positive
+      // instruction (including one after an unrelated “不要联网”) does not.
+      negated = negatesWriting(prefix) || (negated && /(?:或|和|及|以及|、)\s*$/.test(prefix));
+      if (!negated) return true;
+      previousEnd = action.index + action[0].length;
+    }
+    return false;
+  });
+}
 
 export function detectReadRequest(text: string): boolean {
   const value = text.trim();
   if (!value || value.startsWith("/")) return false;
-  return READ_PATTERN.test(value) && !WRITE_PATTERN.test(value);
+  return READ_PATTERN.test(value) && !hasPositiveWriting(value);
 }
 /** 从“帮我写一个智慧农业领域的发明专利”里取出“智慧农业”，取不到返回空串。 */
 export function createTopic(text: string): string {

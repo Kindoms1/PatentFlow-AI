@@ -8,6 +8,18 @@ beforeEach((t) => {
   (t as TestContext).mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected network request in Worker test"); });
 });
 
+test("the browser invite form retains a same-origin Origin header", async () => {
+  const env = environment();
+  const page = await worker.fetch(new Request("https://app.example.test/"), env, context());
+  // no-referrer makes a non-CORS form POST use Origin:null in browsers.
+  const origin = page.headers.get("Referrer-Policy") === "no-referrer" ? "null" : "https://app.example.test";
+  const response = await worker.fetch(new Request("https://app.example.test/__access", {
+    method: "POST", headers: { Origin: origin }, body: new URLSearchParams({ code: env.ACCESS_CODES! }),
+  }), env, context());
+  assert.equal(response.status, 303);
+  assert.match(response.headers.get("Set-Cookie") || "", /pf_session=/);
+});
+
 for (const path of ["/api/agent", "/__access"]) {
   for (const declared of [undefined, "1"]) {
     test(`${path} stops and cancels an oversized body with content-length ${declared ?? "missing"}`, async () => {
