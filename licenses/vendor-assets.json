@@ -1,0 +1,287 @@
+{
+  "schemaVersion": 1,
+  "assetDirectory": "public/vendors",
+  "source": {
+    "repository": "https://github.com/farion1231/cc-switch",
+    "directory": "src/icons/extracted",
+    "ref": "main"
+  },
+  "collectionLicense": {
+    "spdx": "MIT",
+    "copyright": "Copyright (c) 2025 Jason Young",
+    "file": "licenses/cc-switch-MIT.txt",
+    "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/7afceec14b977ecc2f4373e8ffb40e7223b435ac/LICENSE",
+    "revision": "7afceec14b977ecc2f4373e8ffb40e7223b435ac",
+    "sha256": "912b6a597d10c43b40a0909349ed95b052b17efb6502b4898e1b35dafb896755"
+  },
+  "verification": {
+    "method": "Each asset matches its source-catalog Git blob SHA-1; SHA-256 identifies the distributed file bytes.",
+    "sourceRefNote": "The catalog records main, not a pinned asset commit. The collectionLicense revision identifies the verified license only."
+  },
+  "assets": [
+    {
+      "path": "public/vendors/anthropic.svg",
+      "sourcePath": "src/icons/extracted/anthropic.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/anthropic.svg",
+      "gitBlobSha1": "5b81844cbdc94d180845f87cc8da7697f1fadc21",
+      "sha256": "e833fdfa7e7187a86a05b870925067556a506dcd4239089aed73e1e58c9366a3",
+      "bytes": 368
+    },
+    {
+      "path": "public/vendors/azure.svg",
+      "sourcePath": "src/icons/extracted/azure.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/azure.svg",
+      "gitBlobSha1": "ed50209c1f19e226ed860918ceb87757a18bd405",
+      "sha256": "f0535530cedc01fc49b62aac7f5a86ebb54e565002d822e17df4e1c36514249f",
+      "bytes": 1615
+    },
+    {
+      "path": "public/vendors/baidu.svg",
+      "sourcePath": "src/icons/extracted/baidu.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/baidu.svg",
+      "gitBlobSha1": "ead7f89822e32eae78cf7c97c5183e2507812873",
+      "sha256": "1059750a2069aec6080ff48732931e87a99bd3d22db3e8471cebe255b6014b75",
+      "bytes": 1384
+    },
+    {
+      "path": "public/vendors/bytedance.svg",
+      "sourcePath": "src/icons/extracted/bytedance.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/bytedance.svg",
+      "gitBlobSha1": "6921097dac4f8c5cc072049e8c0b217331cb53c5",
+      "sha256": "3d37647be262c79b044e293bb1a4993202537e9f9ffdbd2bbe7e9fc5378d1005",
+      "bytes": 953
+    },
+    {
+      "path": "public/vendors/claude.svg",
+      "sourcePath": "src/icons/extracted/claude.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/claude.svg",
+      "gitBlobSha1": "62dc0db12dafd49c6232d9275c671237dea6a10a",
+      "sha256": "a3101f3047a119aa11825ad9369510f0c472428c8c52d420e31bc62db44a8364",
+      "bytes": 1696
+    },
+    {
+      "path": "public/vendors/ClaudeApi.png",
+      "sourcePath": "src/icons/extracted/ClaudeApi.png",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/ClaudeApi.png",
+      "gitBlobSha1": "f986a92b3216b43b56034c91c0d72982b47a073c",
+      "sha256": "0b8e35eafb4158668b3bb8300e94a4a825bfbb810afbee5dc2dd917c6753a9c7",
+      "bytes": 17555
+    },
+    {
+      "path": "public/vendors/claudecn.png",
+      "sourcePath": "src/icons/extracted/claudecn.png",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/claudecn.png",
+      "gitBlobSha1": "d9645eeb51b43dd22f87ac6f99079192d2fca6d6",
+      "sha256": "42ec32dc8cc97f1b37afcad8e0270c9c97e5efc1d7f0e08ea79115d7510602a2",
+      "bytes": 47341
+    },
+    {
+      "path": "public/vendors/copilot.svg",
+      "sourcePath": "src/icons/extracted/copilot.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/copilot.svg",
+      "gitBlobSha1": "4f4031a8198659af08ff5eecabe49c978698e83f",
+      "sha256": "9f3b992561cbf43e1cb360c0cd3552b58dda78f58cf5bbbce69e6459b71cc32a",
+      "bytes": 3557
+    },
+    {
+      "path": "public/vendors/deepseek.svg",
+      "sourcePath": "src/icons/extracted/deepseek.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/deepseek.svg",
+      "gitBlobSha1": "3fc2302406e22f064f3efda71d8a7bcf0fc1dd41",
+      "sha256": "deba5f98a5c1796e20fcac3149bcd7eb8a32f0bdd04d048819400b1f28bd1439",
+      "bytes": 2164
+    },
+    {
+      "path": "public/vendors/doubao.svg",
+      "sourcePath": "src/icons/extracted/doubao.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/doubao.svg",
+      "gitBlobSha1": "e2511454cfd1fb336b9421123f30cbb8fb401eb3",
+      "sha256": "3cd31ba03ae44b8c29561597a3b863809efecb13fcdfd08407a086df86a69b55",
+      "bytes": 1153
+    },
+    {
+      "path": "public/vendors/gemini.svg",
+      "sourcePath": "src/icons/extracted/gemini.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/gemini.svg",
+      "gitBlobSha1": "f1cf357573df0d2cdfa1152e29ce93a0f15f435d",
+      "sha256": "d7161ea5a85c51d996bb7611c665e9b531db5a4092d4978ed4d6ddf6c043257d",
+      "bytes": 2830
+    },
+    {
+      "path": "public/vendors/githubcopilot.svg",
+      "sourcePath": "src/icons/extracted/githubcopilot.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/githubcopilot.svg",
+      "gitBlobSha1": "3cbf22a599ec1949030e9f6680f395ae4c00e75b",
+      "sha256": "bbc7fddc13448236e5edea8c399d2072dc40aa5da5bca07f7a2f412405c500a3",
+      "bytes": 2019
+    },
+    {
+      "path": "public/vendors/google.svg",
+      "sourcePath": "src/icons/extracted/google.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/google.svg",
+      "gitBlobSha1": "e8e0f867bdea446a77dce127bd44383a618fa0ec",
+      "sha256": "4e6aa8892ef15a6b431f40f2c9045979bf7e2357524e7bbb89b353cf4f32a5ac",
+      "bytes": 920
+    },
+    {
+      "path": "public/vendors/googlecloud.svg",
+      "sourcePath": "src/icons/extracted/googlecloud.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/googlecloud.svg",
+      "gitBlobSha1": "80def4a19864eea24609d3e0063232980ae358f5",
+      "sha256": "c0faf37b180dfc1efe12440c039047b0e1c60a3c424cca6616e580f6f219a7dc",
+      "bytes": 925
+    },
+    {
+      "path": "public/vendors/grok.svg",
+      "sourcePath": "src/icons/extracted/grok.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/grok.svg",
+      "gitBlobSha1": "efb1a6183cbd9d1b68471805dc6c663e2a6fd7ff",
+      "sha256": "9175fc90c22655160231976c849f25a03b888d7cc0e04c5f1b987b659bb07c95",
+      "bytes": 756
+    },
+    {
+      "path": "public/vendors/huawei.svg",
+      "sourcePath": "src/icons/extracted/huawei.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/huawei.svg",
+      "gitBlobSha1": "d55df4599a97e9356de878dd36fc205e73392abf",
+      "sha256": "ca9af4229ba3d538811cad7939b5f3f9edc87ec9448eae579506c659cd133d4a",
+      "bytes": 1481
+    },
+    {
+      "path": "public/vendors/huoshan.png",
+      "sourcePath": "src/icons/extracted/huoshan.png",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/huoshan.png",
+      "gitBlobSha1": "dabe3b721ef469d586ae7887d5f7b1cad855e3af",
+      "sha256": "768a3c1bc491b55cc3e631e1b68c1f26d522014a5926350006b968e0b5974543",
+      "bytes": 35396
+    },
+    {
+      "path": "public/vendors/kimi.svg",
+      "sourcePath": "src/icons/extracted/kimi.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/kimi.svg",
+      "gitBlobSha1": "ec5db53a49c30e4d76c5c1cfc2dbda939a7b2b55",
+      "sha256": "952b010de7104acdb62ac2238453bef628ca72b3753151ca05d74c7815c70647",
+      "bytes": 711
+    },
+    {
+      "path": "public/vendors/longcat-color.svg",
+      "sourcePath": "src/icons/extracted/longcat-color.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/longcat-color.svg",
+      "gitBlobSha1": "fde6c8a364df5f008fd8d1bdb3100f317fb3697a",
+      "sha256": "227f808520d700bc4dc762d8978a737ab149fb53cecb581d71548bacfd26722a",
+      "bytes": 819
+    },
+    {
+      "path": "public/vendors/meta.svg",
+      "sourcePath": "src/icons/extracted/meta.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/meta.svg",
+      "gitBlobSha1": "01fed4c95cb3ceeb8ae80f972374f915581cd723",
+      "sha256": "64a8f1845c10bffcb68002b1d5b05aa8bb63c5847d90fb2bfa73de59879a3783",
+      "bytes": 5996
+    },
+    {
+      "path": "public/vendors/minimax.svg",
+      "sourcePath": "src/icons/extracted/minimax.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/minimax.svg",
+      "gitBlobSha1": "2a60bd4731e48ea02a92477e8794f8f3993cb72c",
+      "sha256": "553256ae1bb6ea442649b8229a4a2e6e5a7e2008404ebd8788b06343fb5c7c1c",
+      "bytes": 1568
+    },
+    {
+      "path": "public/vendors/mistral.svg",
+      "sourcePath": "src/icons/extracted/mistral.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/mistral.svg",
+      "gitBlobSha1": "8e03e244bf1035d2d4ea81e1c226a4c8c4ebd3c4",
+      "sha256": "722f74b289d95486b43662fe24fa883b333701296f618406cd0ed502299170b6",
+      "bytes": 655
+    },
+    {
+      "path": "public/vendors/modelscope-color.svg",
+      "sourcePath": "src/icons/extracted/modelscope-color.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/modelscope-color.svg",
+      "gitBlobSha1": "afbaa171a2332dc407f4e134a157217598e7549e",
+      "sha256": "21841ddba0c560ad44c4def00a66f2a9b31703438ba390ea0b8e01cfbf39b5e4",
+      "bytes": 632
+    },
+    {
+      "path": "public/vendors/newapi.svg",
+      "sourcePath": "src/icons/extracted/newapi.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/newapi.svg",
+      "gitBlobSha1": "a9e1261b98eb2d435919ea0fd0c02b1f2e16014d",
+      "sha256": "2c1105cbbef2bdfd0dd768a78dcec3d0b24e8bd118da47c3cb43e703bcad29ff",
+      "bytes": 2456
+    },
+    {
+      "path": "public/vendors/ollama.svg",
+      "sourcePath": "src/icons/extracted/ollama.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/ollama.svg",
+      "gitBlobSha1": "cc887e3dcfd2260c136e807a84909892dc139fc3",
+      "sha256": "3a268218fb2e6e81fa31df70f70b51331625047794db81db21d35359428fae7a",
+      "bytes": 3290
+    },
+    {
+      "path": "public/vendors/openai.svg",
+      "sourcePath": "src/icons/extracted/openai.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/openai.svg",
+      "gitBlobSha1": "50d94d6c10850b193390316ae8479569227c5e10",
+      "sha256": "f3cf560e84bd85915e32b887cb2abd323529be62d8b4001d2f778669b77eda35",
+      "bytes": 1707
+    },
+    {
+      "path": "public/vendors/openrouter.svg",
+      "sourcePath": "src/icons/extracted/openrouter.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/openrouter.svg",
+      "gitBlobSha1": "e6cca2a869b38deba936454c3f57b14f34e19dd4",
+      "sha256": "c9e48eae623a76ff784877bad6f70f57c67811a05a4ab2450814c7d285b17d24",
+      "bytes": 906
+    },
+    {
+      "path": "public/vendors/qwen.svg",
+      "sourcePath": "src/icons/extracted/qwen.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/qwen.svg",
+      "gitBlobSha1": "33b3f645a854a1cc9e2cd4e7127d59d1a12c33b9",
+      "sha256": "0aa9e2cc95b36f0243cbf384043ae80a2e32542e9260ded335dd59de5e625cb5",
+      "bytes": 2042
+    },
+    {
+      "path": "public/vendors/qwencloud.svg",
+      "sourcePath": "src/icons/extracted/qwencloud.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/qwencloud.svg",
+      "gitBlobSha1": "32165d91f73efeae7bf54044da7326bf267dea81",
+      "sha256": "76c4cbcb367111416709338e163078a4b6a3816b3b3bb5cf1af204c00a5c760e",
+      "bytes": 4895
+    },
+    {
+      "path": "public/vendors/siliconflow.svg",
+      "sourcePath": "src/icons/extracted/siliconflow.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/siliconflow.svg",
+      "gitBlobSha1": "6b5f6d805d0ebc4bc41a707485cf1a9feed8770a",
+      "sha256": "a02d8d7ccb81739fbc720e2e5daaf149013dd5088605dc2dce1b71df0784d424",
+      "bytes": 520
+    },
+    {
+      "path": "public/vendors/stepfun.svg",
+      "sourcePath": "src/icons/extracted/stepfun.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/stepfun.svg",
+      "gitBlobSha1": "0cbe61d170e869ba5e87ddf138ccf3704f2407bf",
+      "sha256": "451c32af176a01376cfc8fe11e149f306c1859dd139af3753641e115613eda57",
+      "bytes": 590
+    },
+    {
+      "path": "public/vendors/xai.svg",
+      "sourcePath": "src/icons/extracted/xai.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/xai.svg",
+      "gitBlobSha1": "536e713902f68124e76a7f15e31455c5eb69247a",
+      "sha256": "89eb7de9f0d02a41cfecd9109e253d7fd3529e27467dee4254faa67f3ac21451",
+      "bytes": 372
+    },
+    {
+      "path": "public/vendors/zhipu.svg",
+      "sourcePath": "src/icons/extracted/zhipu.svg",
+      "sourceUrl": "https://raw.githubusercontent.com/farion1231/cc-switch/main/src/icons/extracted/zhipu.svg",
+      "gitBlobSha1": "0c6e61cea8afc110c0bfcb63894b584a9e1e4df1",
+      "sha256": "8174e65ff71647d5c705c920c953a82bd723d9e3e42887bdd4ffc9dfe51207a0",
+      "bytes": 3597
+    }
+  ]
+}

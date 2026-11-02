@@ -1,0 +1,655 @@
+import { useEffect, useState } from "react";
+import { useListMotion } from "./fx.tsx";
+import { LEGAL_NOTES, PUBLICATIONS, STAGE_LABEL, activeCase, searchPublications } from "./model.ts";
+import type { PatentCase, SearchScope } from "./model.ts";
+import { activateProvider, importCcSwitch, listCcSwitch, listProviders, removeProvider, searchAny, testProvider } from "./provider-api.ts";
+import type { CcLocalProvider } from "./provider-api.ts";
+import type { PublicProvider } from "./provider-api.ts";
+import { ImportPanel } from "./import-panel.tsx";
+import { LibraryPanel } from "./library-panel.tsx";
+import { CcSwitchShelf } from "./model-menu.tsx";
+import { VendorMark } from "./vendor-mark.tsx";
+import { readUserFile } from "./read-user-file.ts";
+import { useStore } from "./store.tsx";
+import { markKnowledgeBack, takeKnowledgeBack } from "./ui-nav.ts";
+import { ClaimChart, formatTime } from "./widgets.tsx";
+import { sizeLabel } from "./page-count.ts";
+
+export function CasesPage() {
+  const { state, dispatch } = useStore();
+  const [stage, setStage] = useState("all");
+  const cases = state.cases.filter((patentCase) => stage === "all" || patentCase.stage === stage);
+  return (
+    <div className="page">
+      <header className="page-head">
+        <div>
+          <p className="kicker">案件</p>
+          <h1>我的专利</h1>
+        </div>
+        <button className="btn primary" type="button" onClick={() => dispatch({ type: "navigate", view: "workbench" })}>
+          新建案件
+        </button>
+      </header>
+      <div className="filters">
+        <button type="button" className={stage === "all" ? "chip active" : "chip"} onClick={() => setStage("all")}>全部</button>
+        {Object.entries(STAGE_LABEL).map(([id, label]) => (
+          <button key={id} type="button" className={stage === id ? "chip active" : "chip"} onClick={() => setStage(id)}>{label}</button>
+        ))}
+      </div>
+      <div className="case-table">
+        {cases.length === 0 ? <p className="empty-copy">这个状态下没有案件。</p> : null}
+        {cases.map((patentCase) => (
+          <article key={patentCase.id}>
+            <div>
+              <h2>{patentCase.title}</h2>
+              <p>
+                {patentCase.patentType} · {STAGE_LABEL[patentCase.stage]} · {formatTime(patentCase.createdAt)}
+                {patentCase.demo ? " · 示范" : ""}
+              </p>
+            </div>
+            <div className="row-actions">
+              <button className="btn ghost" type="button" onClick={() => dispatch({ type: "open-case", id: patentCase.id })}>打开</button>
+              <button className="text-btn" type="button" onClick={() => dispatch({ type: "delete-case", id: patentCase.id })}>删除</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function KnowledgePage() {
+  const { state, dispatch, setView, notify } = useStore();
+  const [bucket, setBucket] = useState<"mine" | "private" | "demo" | "law" | "library">("mine");
+  const [picked, setPicked] = useState<string[]>([]);
+  const selected = PUBLICATIONS.find((item) => item.id === state.selectedPubId) ?? PUBLICATIONS[0];
+  const privateCase = state.cases.find((item) => item.id === state.activeCaseId) ?? state.cases[0];
+  const mine = state.knowledge ?? [];
+  const selectedMine = mine.find((item) => picked.includes(item.id)) ?? mine[0];
+  const [listMotion] = useListMotion();
+
+  const toggle = (id: string) => {
+    setPicked((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  };
+
+  const loadIntoChat = (ids: string[]) => {
+    const usable = ids.filter(Boolean);
+    if (usable.length === 0) {
+      notify("先勾选要载入的材料。");
+      return;
+    }
+    dispatch({ type: "queue-knowledge", ids: usable });
+    setView(takeKnowledgeBack() === "case" && state.activeCaseId ? "case" : "workbench");
+    notify(`已把 ${usable.length} 份知识库材料放入对话。`);
+  };
+
+  const nav = (
+    <aside>
+      <h1 className="sr-only">专利知识库</h1>
+      <p className="nav-label">库</p>
+      <button type="button" className={bucket === "mine" ? "nav-btn active" : "nav-btn"} onClick={() => setBucket("mine")}>我上传的</button>
+      <button type="button" className={bucket === "private" ? "nav-btn active" : "nav-btn"} onClick={() => setBucket("private")}>案件材料</button>
+      <button type="button" className={bucket === "demo" ? "nav-btn active" : "nav-btn"} onClick={() => setBucket("demo")}>示范公开文献</button>
+      <button type="button" className={bucket === "law" ? "nav-btn active" : "nav-btn"} onClick={() => setBucket("law")}>法规要点</button>
+      <button type="button" className={bucket === "library" ? "nav-btn active" : "nav-btn"} onClick={() => setBucket("library")}>专利分类与样例</button>
+    </aside>
+  );
+
+  if (bucket === "library") {
+    return (
+      <div className="knowledge">
+        {nav}
+        <LibraryPanel onLoad={loadIntoChat} notify={notify} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="knowledge">
+      {nav}
+      <section ref={listMotion}>
+        {bucket === "mine" ? (
+          <>
+            <label className="btn primary file-btn knowledge-upload">
+              上传到知识库
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.txt,.md,.markdown,application/pdf,text/plain"
+                onChange={(event) => {
+                  const files = event.target.files;
+                  if (!files) return;
+                  void Promise.all(Array.from(files).map((file) => readUserFile(file))).then((results) => {
+                    results.forEach((result) => {
+                      if (!result.ok) {
+                        notify(result.reason);
+                        return;
+                      }
+                      dispatch({ type: "add-knowledge", name: result.file.name, kind: result.file.kind, text: result.file.text });
+                    });
+                  });
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            {mine.length === 0 ? <p className="empty-copy">还没有上传材料。PDF、txt 和 md 可以留在这里，再一起载入对话。</p> : null}
+            {mine.map((item) => (
+              <label key={item.id} className={picked.includes(item.id) ? "result selected check-result" : "result check-result"}>
+                <input type="checkbox" checked={picked.includes(item.id)} onChange={() => toggle(item.id)} />
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>{sizeLabel(item)} · {formatTime(item.at)}</small>
+                </span>
+              </label>
+            ))}
+          </>
+        ) : null}
+        {bucket === "demo"
+          ? PUBLICATIONS.map((publication) => (
+              <button key={publication.id} type="button" className={publication.id === selected.id ? "result selected" : "result"} onClick={() => dispatch({ type: "select-pub", id: publication.id })}>
+                <strong>{publication.title}</strong>
+                <span>{publication.number} · {publication.publicationDate}</span>
+              </button>
+            ))
+          : null}
+        {bucket === "private"
+          ? state.cases.map((patentCase) => (
+              <button key={patentCase.id} type="button" className="result" onClick={() => dispatch({ type: "open-case", id: patentCase.id })}>
+                <strong>{patentCase.title}</strong>
+                <span>私有材料 · {patentCase.materialName}</span>
+              </button>
+            ))
+          : null}
+        {bucket === "law"
+          ? LEGAL_NOTES.map((note) => (
+              <article key={note.id} className="result selected">
+                <strong>{note.title}</strong>
+                <span>{note.citation}</span>
+              </article>
+            ))
+          : null}
+      </section>
+      <article className="detail">
+        {bucket === "mine" ? (
+          selectedMine ? (
+            <div>
+              <p className="mark mark-severe">私有 · 默认不外发</p>
+              <h1>{selectedMine.name}</h1>
+              <p className="fine">{selectedMine.chars} 字</p>
+              <div className="composer-bar">
+                <button className="btn primary" type="button" onClick={() => loadIntoChat(picked.length ? picked : [selectedMine.id])}>加入当前对话</button>
+                <button className="text-btn" type="button" onClick={() => dispatch({ type: "remove-knowledge", id: selectedMine.id })}>移出知识库</button>
+              </div>
+              <pre className="knowledge-text">{selectedMine.text}</pre>
+            </div>
+          ) : (
+            <p className="empty-copy">上传论文、实验记录或公开文本，再点“加入当前对话”，会作为附件进入输入框。</p>
+          )
+        ) : null}
+        {bucket === "demo" ? (
+          <div>
+            <PublicationDetail publication={selected} />
+            <button className="btn primary" type="button" onClick={() => loadIntoChat([selected.id])}>把这篇示范文献加入对话</button>
+          </div>
+        ) : null}
+        {bucket === "private" && privateCase ? <PrivateDetail patentCase={privateCase} /> : null}
+        {bucket === "law" ? (
+          <div>
+            <p className="mark mark-confirm">{LEGAL_NOTES[0].effective}</p>
+            <h1>{LEGAL_NOTES[0].title}</h1>
+            <p>{LEGAL_NOTES[0].point}</p>
+            <a href={LEGAL_NOTES[0].sourceUrl} target="_blank" rel="noreferrer">查看官方文本</a>
+            <div className="composer-bar">
+              <button className="btn primary" type="button" onClick={() => loadIntoChat([LEGAL_NOTES[0].id])}>把这条法规加入对话</button>
+            </div>
+          </div>
+        ) : null}
+      </article>
+    </div>
+  );
+}
+
+function PublicationDetail({ publication }: { publication: (typeof PUBLICATIONS)[number] }) {
+  return (
+    <div>
+      <p className="demo-banner">虚构示范文本，不是官方专利文献。状态 {publication.status} 只表示这份内置文本可定位。</p>
+      <h1>{publication.title}</h1>
+      <dl className="meta">
+        <div><dt>文献号</dt><dd>{publication.number}</dd></div>
+        <div><dt>日期</dt><dd>{publication.publicationDate}</dd></div>
+        <div><dt>申请人</dt><dd>{publication.assignee}</dd></div>
+        <div><dt>分类号</dt><dd>{publication.ipcNote}</dd></div>
+      </dl>
+      <h2>正文</h2>
+      <p>{publication.text}</p>
+      <h2>权利要求</h2>
+      <p>{publication.claimsText}</p>
+    </div>
+  );
+}
+
+function PrivateDetail({ patentCase }: { patentCase: PatentCase }) {
+  return (
+    <div>
+      <p className="mark mark-severe">私有 · 默认不外发</p>
+      <h1>{patentCase.title}</h1>
+      <p>{patentCase.materialText}</p>
+    </div>
+  );
+}
+
+export { RadarPage } from "./radar-page.tsx";
+
+export function SearchPage() {
+  const { state, dispatch } = useStore();
+  const [draft, setDraft] = useState(state.searchQuery);
+  const [askWeb, setAskWeb] = useState(true);
+  const [webDetail, setWebDetail] = useState("");
+  const [webResults, setWebResults] = useState<Array<{ title: string; url: string; snippet: string }>>([]);
+  const results = searchPublications(state.searchQuery, state.searchScope);
+  const current = activeCase(state);
+  const showLaw = /第三十三|修改超出|原始记载/.test(state.searchQuery);
+  const [resultMotion] = useListMotion();
+  const [webMotion] = useListMotion();
+  return (
+    <div className="page">
+      <p className="kicker">检索</p>
+      <h1>专利检索</h1>
+      <form
+        className="search-row"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const query = draft.trim();
+          dispatch({ type: "search", query, scope: state.searchScope });
+          if (!query) {
+            setWebResults([]);
+            setWebDetail(askWeb && state.searchScope !== "private" ? "检索式为空：已显示示范库全部文献；输入关键词或公开号后才会发给 AnySearch。" : "");
+            event.currentTarget.querySelector("input")?.focus();
+            return;
+          }
+          if (!askWeb || state.searchScope === "private") {
+            setWebResults([]);
+            setWebDetail(state.searchScope === "private" ? "私有材料不会发给 AnySearch。" : "");
+            return;
+          }
+          setWebDetail("正在向 AnySearch 发送检索式。");
+          void searchAny(query).then((found) => {
+            setWebResults(found.results);
+            setWebDetail(found.detail);
+          });
+        }}
+      >
+        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="检索示范文献的标题、正文或编号" aria-label="检索式" />
+        <button className="btn primary" type="submit">检索</button>
+      </form>
+      <div className="filters">
+        {([["all", "全部范围"], ["demo", "示范公开文献"], ["private", "只看私有材料"]] as Array<[SearchScope, string]>).map(([id, label]) => (
+          <button key={id} type="button" className={state.searchScope === id ? "chip active" : "chip"} onClick={() => dispatch({ type: "search", query: state.searchQuery, scope: id })}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {state.searchScope !== "private" ? (
+        <div className="result-list" ref={resultMotion}>
+          {results.length === 0 ? <p className="empty-copy">示范库里没有匹配文献。这不表示公开专利中不存在相关技术。</p> : null}
+          {results.map((publication) => (
+            <article key={publication.id} className="result-card">
+              <div>
+                <h2>{publication.title}</h2>
+                <p>{publication.number} · {publication.publicationDate} · {publication.assignee}</p>
+                <p>{publication.text}</p>
+              </div>
+              <div className="row-actions">
+                <button className="btn ghost" type="button" disabled={!current} title={!current ? "先打开或新建一个案件，再标记 D1/D2" : undefined} aria-pressed={current?.priorArt.d1 === publication.id} onClick={() => current && dispatch({ type: "pin-art", caseId: current.id, pubId: publication.id, slot: "d1" })}>
+                  {current?.priorArt.d1 === publication.id ? "已是 D1" : "标为 D1"}
+                </button>
+                <button className="btn ghost" type="button" disabled={!current} title={!current ? "先打开或新建一个案件，再标记 D1/D2" : undefined} aria-pressed={current?.priorArt.d2 === publication.id} onClick={() => current && dispatch({ type: "pin-art", caseId: current.id, pubId: publication.id, slot: "d2" })}>
+                  {current?.priorArt.d2 === publication.id ? "已是 D2" : "标为 D2"}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="result-list" ref={resultMotion}>
+          {state.cases.filter((patentCase) => !state.searchQuery || `${patentCase.title}${patentCase.materialText}`.includes(state.searchQuery)).map((patentCase) => (
+            <article key={patentCase.id} className="result-card">
+              <div>
+                <h2>{patentCase.title}</h2>
+                <p>私有材料不会进入外部检索。</p>
+              </div>
+              <button className="btn ghost" type="button" onClick={() => dispatch({ type: "open-case", id: patentCase.id })}>打开</button>
+            </article>
+          ))}
+        </div>
+      )}
+      <label className="check">
+        <input type="checkbox" checked={askWeb} onChange={(event) => setAskWeb(event.target.checked)} />
+        同时把检索式发给 AnySearch。不会附带案件正文。
+      </label>
+      {webDetail ? <p className="fine" role="status">{webDetail}</p> : null}
+      {webResults.length > 0 ? (
+        <div className="result-list" ref={webMotion}>
+          {webResults.map((item) => (
+            <article key={item.url || item.title} className="result-card">
+              <div>
+                <span className="mark mark-confirm">AnySearch 线索 · 未核验</span>
+                <h2>{item.title}</h2>
+                <p>{item.snippet}</p>
+                {item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.url}</a> : null}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
+      {!current ? <p className="fine">先打开一个案件，才能把文献标成对比文件。</p> : <p className="fine">对比文件将写入：{current.title}</p>}
+      {showLaw ? (
+        <article className="panel">
+          <h2>{LEGAL_NOTES[0].citation}</h2>
+          <p>{LEGAL_NOTES[0].point}</p>
+        </article>
+      ) : null}
+    </div>
+  );
+}
+
+export function AnalysisPage() {
+  const { state, dispatch } = useStore();
+  const current = activeCase(state);
+  return (
+    <div className="page">
+      <header className="page-head">
+        <div>
+          <p className="kicker">分析</p>
+          <h1>技术分析</h1>
+        </div>
+        <label>
+          案件
+          <select value={current?.id ?? ""} onChange={(event) => dispatch({ type: "focus-case", id: event.target.value })}>
+            {state.cases.map((patentCase) => (
+              <option key={patentCase.id} value={patentCase.id}>{patentCase.title}</option>
+            ))}
+          </select>
+        </label>
+      </header>
+      {!current || current.claims.length === 0 ? (
+        <p className="empty-copy">这件还没有权利要求。先确认事实并生成草稿，树和对照表才会出现。</p>
+      ) : (
+        <div className="analysis-grid">
+          <section>
+            <h2>权利要求树</h2>
+            <ol className="tree">
+              {current.claims.filter((claim) => claim.parentNo === null).map((claim) => (
+                <li key={claim.id}>
+                  <strong>权利要求 {claim.no}</strong>
+                  <p>{claim.text}</p>
+                  <ol>
+                    {current.claims.filter((child) => child.parentNo === claim.no).map((child) => (
+                      <li key={child.id}>
+                        <strong>权利要求 {child.no}</strong>
+                        <p>{child.text}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </li>
+              ))}
+            </ol>
+          </section>
+          <section>
+            <h2>特征对照</h2>
+            <ClaimChart patentCase={current} />
+          </section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function SkillsPage() {
+  const { state, dispatch } = useStore();
+  return (
+    <div className="page">
+      <p className="kicker">能力</p>
+      <h1>Skills</h1>
+      <p className="lede">这些开关记录你准备使用的领域流程。抓取脚本保持关闭。浏览器里没有执行上游专利技能的 Python 工具。</p>
+      <div className="skill-grid">
+        {state.skills.map((skill) => (
+          <article key={skill.id} className="panel">
+            <header className="panel-head">
+              <h2>{skill.name}</h2>
+              <button className="text-btn" type="button" disabled={Boolean(skill.lockedReason)} onClick={() => dispatch({ type: "toggle-skill", id: skill.id })}>
+                {skill.lockedReason ? "已锁定" : skill.enabled ? "已启用" : "已停用"}
+              </button>
+            </header>
+            <p>{skill.summary}</p>
+            {skill.lockedReason ? <p className="fine">{skill.lockedReason}</p> : null}
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
+  const { notify } = useStore();
+  const [providers, setProviders] = useState<PublicProvider[]>([]);
+  const [local, setLocal] = useState<CcLocalProvider[]>([]);
+  const [localDetail, setLocalDetail] = useState("正在读取 CC Switch 配置。");
+  const [busy, setBusy] = useState("");
+  const [ready, setReady] = useState(false);
+
+  const reload = async () => {
+    setProviders(await listProviders());
+    setReady(true);
+  };
+
+  const loadLocal = () => {
+    void listCcSwitch().then((found) => {
+      setLocal(found.providers);
+      setLocalDetail(found.detail);
+    }).catch(() => setLocalDetail("没有读到 CC Switch 配置。"));
+  };
+
+  useEffect(() => {
+    const timer = window.setTimeout(loadLocal, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listProviders().then((items) => {
+      if (!cancelled) {
+        setProviders(items);
+        setReady(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const openai = providers.filter((item) => item.role === "model" && item.protocol === "openai");
+  const claude = providers.filter((item) => item.role === "model" && item.protocol === "claude");
+  const search = providers.filter((item) => item.role === "search");
+
+  return (
+    <div className={embedded ? "models-embed" : "page page-narrow"}>
+      {embedded ? <h2>已配置的模型</h2> : (
+        <>
+          <p className="kicker">模型</p>
+          <h1>模型与工具</h1>
+          <p className="lede">提供方按 OpenAI 协议和 Claude 协议分开。密钥只保存在服务端，页面只显示末四位。</p>
+        </>
+      )}
+      <CcSwitchShelf
+        local={local}
+        detail={localDetail}
+        busy={busy}
+        onRefresh={loadLocal}
+        onUse={(item, model) => {
+          if (!item.canImport) {
+            notify(item.reason || "这个提供方还不能导入。");
+            return;
+          }
+          setBusy(item.key + model);
+          void importCcSwitch(item.key, model).then((result) => {
+            setBusy("");
+            if (result.error) {
+              notify(result.error);
+              return;
+            }
+            notify(`已切换到 ${item.name}${model ? ` · ${model}` : ""}。`);
+            void reload();
+          });
+        }}
+      />
+      {ready ? (
+        <>
+          <ProviderGroup title="OpenAI 协议" items={openai} busy={busy} setBusy={setBusy} reload={reload} notify={notify} />
+          <ProviderGroup title="Claude 协议" items={claude} busy={busy} setBusy={setBusy} reload={reload} notify={notify} />
+          <ProviderGroup title="检索" items={search} busy={busy} setBusy={setBusy} reload={reload} notify={notify} />
+        </>
+      ) : (
+        <p className="fine">正在读取已配置的模型。</p>
+      )}
+      <ImportPanel onImported={() => void reload()} />
+    </div>
+  );
+}
+
+function ProviderGroup({ title, items, busy, setBusy, reload, notify }: { title: string; items: PublicProvider[]; busy: string; setBusy: (value: string) => void; reload: () => Promise<void>; notify: (message: string) => void }) {
+  if (items.length === 0) return <article className="panel"><h2>{title}</h2><p className="fine">还没有这一类提供方。</p></article>;
+  return (
+    <section className="provider-group">
+      <h2>{title}</h2>
+      {items.map((item) => (
+        <article key={item.id} className="panel">
+          <header className="panel-head">
+            <h2 className="provider-title"><VendorMark icon={item.icon} name={item.name} model={item.model} website={item.website} color={item.iconColor} />{item.name}</h2>
+            <span className={item.hasKey ? "judge judge-明确包含" : "judge judge-待确认"}>{item.hasKey ? "密钥已就位" : "缺少密钥"}</span>
+          </header>
+          <p>{item.role === "search" ? "检索工具" : item.protocol === "openai" ? "OpenAI 协议" : "Claude 协议"}{item.active ? " · 当前模型" : ""}</p>
+          <p className="fine">{item.website || "未填网站"} · {item.baseUrl || "未填接口"}{item.model ? ` · ${item.model}` : ""}</p>
+          <p className="fine">{item.keyHint}</p>
+          <div className="composer-bar">
+            {item.role === "model" ? (
+              <button
+                className="btn ghost"
+                type="button"
+                disabled={item.active || busy !== ""}
+                title={!item.active && busy && busy !== `activate-${item.id}` ? "等当前测试或切换结束后再操作" : undefined}
+                onClick={() => {
+                  if (busy) return;
+                  setBusy(`activate-${item.id}`);
+                  void activateProvider(item.id)
+                    .then(reload)
+                    .then(() => notify(`已将「${item.name}」设为当前模型。`))
+                    .catch(() => notify(`没能切换到「${item.name}」，请稍后再试。`))
+                    .finally(() => setBusy(""));
+                }}
+              >
+                {item.active ? "使用中" : busy === `activate-${item.id}` ? "正在切换" : "设为当前"}
+              </button>
+            ) : null}
+            <button
+              className="btn ghost"
+              type="button"
+              disabled={busy !== ""}
+              aria-busy={busy === item.id || undefined}
+              title={busy && busy !== item.id ? "等当前测试或切换结束后再操作" : undefined}
+              onClick={() => {
+                if (busy) return;
+                setBusy(item.id);
+                void testProvider(item.id)
+                  .then((result) => notify(`${item.name}：${result.detail}${result.status ? ` HTTP ${result.status}` : ""}`))
+                  .catch(() => notify(`${item.name}：没有连上测试服务，请确认本地服务已启动。`))
+                  .finally(() => setBusy(""));
+              }}
+            >
+              {busy === item.id ? "正在测试" : "测试连接"}
+            </button>
+            {item.id.startsWith("import-") ? (
+              <button className="text-btn" type="button" onClick={() => void removeProvider(item.id).then(reload)}>
+                移出
+              </button>
+            ) : null}
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+export function TasksPage() {
+  const { state } = useStore();
+  return (
+    <div className="page">
+      <p className="kicker">运行</p>
+      <h1>任务中心</h1>
+      <ul className="job-list">
+        {state.jobs.map((job) => (
+          <li key={job.id}>
+            <span className={job.status === "succeeded" ? "judge judge-明确包含" : "judge judge-待确认"}>{job.status === "succeeded" ? "已完成" : "未执行"}</span>
+            <div>
+              <strong>{job.title}</strong>
+              <p>{job.detail}</p>
+              <small>{formatTime(job.at)} · {job.durationMs} ms</small>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function SettingsPage() {
+  const { state, dispatch, setView } = useStore();
+  const [ask, setAsk] = useState(false);
+  const downloadAudit = () => {
+    const bundle = {
+      exportedAt: new Date().toISOString(),
+      cases: state.cases.map((patentCase) => ({ id: patentCase.id, title: patentCase.title, stage: patentCase.stage, audit: patentCase.audit })),
+      jobs: state.jobs,
+      knowledge: (state.knowledge ?? []).map((item) => ({ id: item.id, name: item.name, chars: item.chars })),
+      model: { baseUrl: state.model.baseUrl, modelId: state.model.modelId, keyHint: state.model.keyHint },
+    };
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = "patentflow-audit.json";
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+  };
+  return (
+    <div className="page page-narrow settings-page">
+      <p className="kicker">设置</p>
+      <h1>模型与数据</h1>
+      <p className="lede">在这里切换和导入模型。知识库在左侧书本图标里，可以上传后一起载入对话。</p>
+      <ModelsPage embedded />
+      <article className="panel">
+        <h2>知识库</h2>
+        <p>私有 PDF 和文本可以先入库，再点“加入当前对话”。不会假装已经同步国家知识产权局。</p>
+        <button className="btn ghost" type="button" onClick={() => { markKnowledgeBack("workbench"); setView("knowledge"); }}>打开知识库</button>
+      </article>
+      <article className="panel">
+        <h2>私有发明默认不外发</h2>
+        <p>案件正文不会发给 AnySearch。只有当前模型的对话请求会离开浏览器，密钥只保存在服务端。</p>
+      </article>
+      <article className="panel">
+        <h2>数据管理</h2>
+        <div className="composer-bar">
+          <button className="btn ghost" type="button" onClick={downloadAudit}>下载审计记录</button>
+          <button className="btn ghost" type="button" onClick={() => dispatch({ type: "restore-demo" })}>恢复示范案件</button>
+          <button className="text-btn danger" type="button" onClick={() => setAsk(true)}>清空全部数据</button>
+        </div>
+        {ask ? (
+          <div className="confirm-row">
+            <p>清空后，所有会话、知识库和记录都会被删除，且无法恢复。服务端密钥文件不会被这个按钮删除。</p>
+            <button className="btn primary" type="button" onClick={() => { dispatch({ type: "wipe" }); setAsk(false); }}>确认清空</button>
+            <button className="btn ghost" type="button" onClick={() => setAsk(false)}>取消</button>
+          </div>
+        ) : null}
+      </article>
+    </div>
+  );
+}

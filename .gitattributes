@@ -1,0 +1,13 @@
+* text=auto eol=lf
+*.pdf -text
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.webp -text
+*.zip -text
+*.docx -text
+*.pptx -text
+*.xlsx -text
+# Preserve upstream asset bytes used by the attribution hash manifest.
+public/vendors/* -text
+licenses/cc-switch-MIT.txt -text

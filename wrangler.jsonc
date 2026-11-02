@@ -1,0 +1,23 @@
+{
+  // PatentFlow AI: one Worker serves the built SPA (./dist) and the /api routes.
+  // Secrets (AGNES_API_KEY, ANYSEARCH_API_KEY, ACCESS_CODES, SESSION_SECRET, base URLs) are set with
+  // "node scripts/cf-secrets.mjs", never in this file. Local dev reads them from .dev.vars.
+  "name": "patentflow-ai",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "vars": {
+    "AGENT_PER_HOUR": "30",
+    "TOOLS_PER_HOUR": "120",
+    "MAX_BODY_BYTES": "2000000",
+    "MAX_OUTPUT_TOKENS": "32000",
+    "SESSION_DAYS": "7"
+  }
+}
