@@ -5,6 +5,12 @@ export interface RadarScheduleFields {
   lastRunAt?: string;
 }
 
+export function radarSavedNotice(name: string, schedule: RadarScheduleFields['schedule']): string {
+  return schedule === 'manual'
+    ? `已保存「${name.trim()}」，点击“立即运行”手动检索。`
+    : `已订阅「${name.trim()}」，几秒后自动跑第一次。`;
+}
+
 /** Daily waits 20 hours (so a run drifts with the time the app is opened), weekly 6.5 days, manual never. */
 export function radarDue(sub: RadarScheduleFields, now = new Date()): boolean {
   if (!sub.enabled || sub.schedule === "manual") return false;

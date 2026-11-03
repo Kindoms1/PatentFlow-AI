@@ -5,6 +5,7 @@ import { radarDue, runSubscription, runSubscriptionReport, useRadarRunning } fro
 import { summarizeRadarRun, type RadarRunReport } from "./radar-summary.ts";
 import { useStore } from "./store.tsx";
 import { formatTime } from "./widgets.tsx";
+import { radarSavedNotice } from './radar-schedule.ts';
 
 const SCHEDULE_LABEL: Record<Subscription["schedule"], string> = { daily: "每日", weekly: "每周", manual: "手动" };
 
@@ -149,7 +150,7 @@ export function RadarPage() {
             event.preventDefault();
             if (!name.trim() || !keywords.trim()) return;
             dispatch({ type: "add-sub", name, keywords, schedule, ipc });
-            notify(`已订阅「${name.trim()}」，几秒后自动跑第一次。`);
+            notify(radarSavedNotice(name, schedule));
           }}
         >
           <div className="preset-row">
@@ -177,7 +178,7 @@ export function RadarPage() {
           <IpcGuide value={ipc} onPick={setIpc} />
           <label>
             计划
-            <select value={schedule} onChange={(event) => setSchedule(event.target.value as Subscription["schedule"])}>
+            <select aria-label="计划" value={schedule} onChange={(event) => setSchedule(event.target.value as Subscription["schedule"])}>
               <option value="daily">每日</option>
               <option value="weekly">每周</option>
               <option value="manual">手动</option>
