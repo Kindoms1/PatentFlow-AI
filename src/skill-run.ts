@@ -9,6 +9,7 @@ import { groundFacts, parseSkillReply } from "./patent-skill.ts";
 import { CREATE_TRACE_PREFIX, OUTLINE_MATERIAL_NAME, buildChatMessages, conversationMaterial, draftExtra, materialsText, type PackedMaterial, type SlashIntent } from "./skill-turn.ts";
 import { citedSources, streamAgent } from "./agent-stream.ts";
 import { TOOL_LABEL, type AgentEvent, type AgentSource } from "./agent-events.ts";
+import { personalModels, type ModelSelection } from './personal-models.ts';
 
 /** Intents allowed to reach the web. Digging points, drafting and reading stay inside the user's own materials. */
 export function intentUsesTools(intent: SlashIntent): boolean {
@@ -49,6 +50,7 @@ async function askModel(
   intent: SlashIntent,
   onTrace: (text: string) => void,
   signal?: AbortSignal,
+  selection?: ModelSelection,
 ): Promise<ModelReply> {
   const tools = intentUsesTools(intent);
   const outcome = await streamAgent(
@@ -66,6 +68,7 @@ async function askModel(
       if (line) onTrace(line);
     },
     signal,
+    selection,
   );
   if (outcome.type === "done") {
     return { ok: Boolean(outcome.text.trim()), text: outcome.text, detail: outcome.text.trim() ? "" : "模型返回了空回答", model: outcome.model, sources: outcome.sources, aborted: false };
@@ -73,7 +76,7 @@ async function askModel(
   if (signal?.aborted) return { ok: false, text: "", detail: "已停止", model: "", sources: [], aborted: true };
   // An older server without /api/agent: fall back to the plain chat route once.
   if (outcome.status === 404) {
-    const plain = await chatWithModel(messages, signal);
+    const plain = await chatWithModel(messages, signal, selection);
     return { ...plain, sources: [], aborted: Boolean(signal?.aborted) };
   }
   return { ok: false, text: "", detail: outcome.detail, model: "", sources: outcome.sources ?? [], aborted: false };
@@ -117,6 +120,12 @@ export async function runPatentTurn(input: {
       attachments: input.attachments,
     });
   }
+  // Keep the user's request even when a memory-only key expired after a reload.
+  // Freeze this turn's provider: switching settings cannot mix providers mid-draft.
+  let selection: ModelSelection;
+  try { selection = { clientProvider: personalModels().request() }; }
+  catch (error) { input.dispatch({ type: 'chat-note', caseId: input.caseId, role: 'assistant', text: (error as Error).message }); return; }
+  const ask: typeof askModel = (messages, intent, trace, signal) => askModel(messages, intent, trace, signal, selection);
   // “不要问我，直接做”：选题 → 大纲 → 完整申请文件一次跑完，不停下来等发明人。
   if (intent === "auto") {
     await runAutoPatent(
@@ -131,9 +140,9 @@ export async function runPatentTurn(input: {
         signal: input.signal,
       },
       {
-        ask: (messages, stepIntent, onTrace, signal) => askModel(messages, stepIntent, onTrace, signal),
+        ask: (messages, stepIntent, onTrace, signal) => ask(messages, stepIntent, onTrace, signal),
         draft: {
-          ask: (messages, onTrace, signal) => askModel(messages, "draft", onTrace, signal),
+          ask: (messages, onTrace, signal) => ask(messages, "draft", onTrace, signal),
           search: (query) => searchAny(query, "cn"),
           extract: (url) => extractAny(url),
         },
@@ -145,7 +154,7 @@ export async function runPatentTurn(input: {
   if (intent === "revise") {
     await runReviseTurn(
       { caseId: input.caseId, draft: input.draft, instruction: input.userText, dispatch: input.dispatch, signal: input.signal },
-      { ask: (messages, onTrace, signal) => askModel(messages, "revise", onTrace, signal) },
+      { ask: (messages, onTrace, signal) => ask(messages, "revise", onTrace, signal) },
     );
     return;
   }
@@ -169,7 +178,7 @@ export async function runPatentTurn(input: {
         signal: input.signal,
       },
       {
-        ask: (messages, onTrace, signal) => askModel(messages, "draft", onTrace, signal),
+        ask: (messages, onTrace, signal) => ask(messages, "draft", onTrace, signal),
         search: (query) => searchAny(query, "cn"),
         extract: (url) => extractAny(url),
         expand: true,
@@ -178,7 +187,7 @@ export async function runPatentTurn(input: {
     return;
   }
   trace(traceLine(intent, materials.map((item) => item.name)));
-  const result = await askModel(
+  const result = await ask(
     buildChatMessages({
       materials,
       history: input.history ?? [],

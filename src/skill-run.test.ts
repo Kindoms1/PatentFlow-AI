@@ -4,11 +4,20 @@ import { intentUsesTools, runPatentTurn, sourcesTrace, traceForEvent } from "./s
 import type { Action, ChatMessage } from "./model.ts";
 import { CONVERSATION_MATERIAL_NAME, conversationMaterial, titleFromMaterials } from "./skill-turn.ts";
 import { draftQueries } from "./prior-art.ts";
+import { personalModels } from './personal-models.ts';
 
 function ndjsonResponse(events: unknown[]): Response {
   const body = events.map((event) => JSON.stringify(event)).join("\n") + "\n";
   return new Response(body, { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
 }
+test('missing personal key preserves the request and never spends site credentials', async t => {
+  t.mock.method(personalModels(), 'request', () => { throw new Error('请重新填写 API Key'); });
+  t.mock.method(globalThis, 'fetch', async () => { throw new Error('must not fetch'); });
+  const actions: Action[] = [];
+  await runPatentTurn({ caseId: 'missing-key', userText: '请保留我的这条完整生成要求', recordUser: true, dispatch: action => actions.push(action) });
+  assert.ok(actions.some(action => action.type === 'chat-note' && action.role === 'user' && action.text.includes('完整生成要求')));
+  assert.ok(actions.some(action => action.type === 'chat-note' && action.role === 'assistant' && action.text.includes('API Key')));
+});
 
 test("only search, chart and chat may use web tools", () => {
   assert.equal(intentUsesTools("search"), true);

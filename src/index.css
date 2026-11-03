@@ -1228,3 +1228,33 @@ p.fine a { display: inline-block; min-height: 24px; line-height: 24px; }
 .dsh-main:not(.chatting) > .dsh-empty, .dsh-main:not(.chatting) > .dsh-compose { flex-shrink: 0; }
 /* pf-narrow-padding-fix */
 @media (max-width: 640px) { .dsh-main:not(.chatting) { padding-bottom: env(safe-area-inset-bottom, 0px); } }
+
+/* Personal model configuration: independent credentials, readable at popover widths. */
+.personal-models { display: grid; gap: 12px; padding: 18px; border: 1px solid #dbe5f7; border-radius: 18px; background: linear-gradient(135deg, #f7faff, #fff); min-width: 0; }
+.personal-models h3 { margin: 0; font-size: 16px; }
+.personal-models h3 span, .byok-badge { display: inline-block; margin-left: 8px; padding: 3px 7px; border-radius: 7px; background: #e8f0ff; color: #3157c5; font-size: 10px; vertical-align: middle; }
+.byok-privacy { margin: 0; padding: 12px; color: #52627a; background: #eef4fd; border-radius: 12px; font-size: 12px; line-height: 1.7; }
+.byok-profile { padding: 14px; border: 1px solid #dce4f0; border-radius: 12px; background: #fff; overflow-wrap: anywhere; }
+.byok-profile.active { border-color: #749be8; box-shadow: 0 2px 12px #2458bd0c; }
+.byok-profile p { margin: 5px 0; font-size: 13px; }
+.byok-profile small { color: #66758a; font-size: 11px; }
+.byok-form { display: grid; gap: 13px; padding: 16px; border-radius: 14px; background: #fff; border: 1px solid #dce4f0; }
+.byok-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 600; color: #33445c; min-width: 0; }
+.byok-form input:not([type=checkbox]), .byok-form select { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #d4deed; border-radius: 9px; background: #fff; color: #26354b; font: inherit; box-sizing: border-box; }
+.byok-form input:focus-visible, .byok-form select:focus-visible { outline: 2px solid #82a7ef; outline-offset: 2px; }
+.byok-form .byok-check { display: flex; align-items: flex-start; gap: 8px; font-weight: 400; line-height: 1.6; }
+.byok-check input { width: 15px; height: 15px; flex-shrink: 0; margin: 3px 0 0; }
+.byok-form details { border-top: 1px solid #e6edf6; padding-top: 10px; }
+.byok-form details label { margin-top: 12px; }
+.byok-form summary { cursor: pointer; font-size: 12px; color: #42608d; }
+.byok-key { display: flex; gap: 6px; min-width: 0; }
+.byok-key button { flex-shrink: 0; }
+.byok-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.byok-actions button, .byok-key button { border-radius: 9px; border: 1px solid #dce4f0; padding: 7px 11px; font-size: 12px; background: #fff; color: #3157c5; }
+.byok-actions .primary { color: #fff; background: #155eef; border-color: #155eef; }
+.byok-actions button:not(:disabled):hover, .byok-key button:hover { box-shadow: 0 3px 10px #2358b521; border-color: #87a8e5; }
+.byok-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.byok-status { margin: 0; border-left: 3px solid #7197e6; background: #f2f6fd; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.model-sheet .personal-models { padding: 12px; }
+.model-sheet .byok-form { padding: 12px; }
+.model-source { font-size: 10px; padding: 2px 5px; border-radius: 5px; background: #edf3fe; color: #476596; white-space: nowrap; }

@@ -2,6 +2,8 @@
  * Browser side of the patent agent: decodes agent NDJSON or a no-tool text SSE stream.
  */
 import type { AgentEvent, AgentRequest, AgentSource } from "./agent-events.ts";
+import { PersonalModelError, withPersonalModel } from './personal-models.ts';
+import type { ModelSelection } from './personal-models.ts';
 
 const EVENT_TYPES = new Set(["start", "step", "delta", "tool_call", "tool_result", "notice", "done", "error"]);
 
@@ -42,8 +44,9 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 function createTextSseParser(onEvent: (event: AgentEvent) => void, headers: Headers) {
-  const headerModel = headers.get("X-PatentFlow-Model") || "";
-  const provider = headers.get("X-PatentFlow-Provider") || "";
+  const header = (name: string) => { const value = headers.get(name) || ''; try { return decodeURIComponent(value); } catch { return value; } };
+  const headerModel = header("X-PatentFlow-Model");
+  const provider = header("X-PatentFlow-Provider");
   let model = headerModel;
   let started = false;
   let terminal = false;
@@ -91,6 +94,23 @@ function createTextSseParser(onEvent: (event: AgentEvent) => void, headers: Head
     start();
     // Do not expose arbitrary upstream error bodies or reasoning transcripts.
     if (payload.error !== undefined && payload.error !== null) { fail("上游模型返回错误，回答可能不完整。"); return; }
+    if (headers.get('X-PatentFlow-Protocol') === 'claude') {
+      const message = record(payload.message);
+      const counts = record(message?.usage ?? payload.usage);
+      if (typeof counts?.input_tokens === 'number') usage.input = Math.max(0, counts.input_tokens);
+      if (typeof counts?.output_tokens === 'number') usage.output = Math.max(0, counts.output_tokens);
+      const block = record(payload.content_block);
+      const delta = record(payload.delta);
+      if (block?.type === 'tool_use' || delta?.type === 'input_json_delta') { fail('文本流返回了工具调用，回答未完成。'); return; }
+      const text = payload.type === 'content_block_start' && block?.type === 'text' ? block.text : payload.type === 'content_block_delta' && delta?.type === 'text_delta' ? delta.text : '';
+      if (typeof text === 'string' && text) { parts.push(text); onEvent({ type: 'delta', text }); }
+      if (payload.type === 'message_delta' && delta?.stop_reason) {
+        if (delta.stop_reason === 'end_turn' || delta.stop_reason === 'stop_sequence') stopped = true;
+        else fail(delta.stop_reason === 'max_tokens' ? '模型达到输出上限，回答可能不完整。' : '模型未正常完成回答，请重试。');
+      }
+      if (payload.type === 'message_stop') { if (stopped) finish(); else fail('模型未正常结束，回答可能不完整。'); }
+      return;
+    }
     const counts = record(payload.usage);
     if (typeof counts?.prompt_tokens === "number" && Number.isFinite(counts.prompt_tokens) && counts.prompt_tokens >= 0) usage.input = counts.prompt_tokens;
     if (typeof counts?.completion_tokens === "number" && Number.isFinite(counts.completion_tokens) && counts.completion_tokens >= 0) usage.output = counts.completion_tokens;
@@ -147,7 +167,7 @@ function createTextSseParser(onEvent: (event: AgentEvent) => void, headers: Head
   };
 }
 
-export async function streamAgent(request: AgentRequest, onEvent: (event: AgentEvent) => void, signal?: AbortSignal): Promise<AgentOutcome> {
+export async function streamAgent(request: AgentRequest, onEvent: (event: AgentEvent) => void, signal?: AbortSignal, selection?: ModelSelection): Promise<AgentOutcome> {
   const seen: { terminal: AgentOutcome | null } = { terminal: null };
   const forward = (event: AgentEvent) => {
     signal?.throwIfAborted();
@@ -159,7 +179,7 @@ export async function streamAgent(request: AgentRequest, onEvent: (event: AgentE
     const response = await fetch("/api/agent", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson, text/event-stream" },
-      body: JSON.stringify(request),
+      body: JSON.stringify(selection ? { ...request, ...selection } : withPersonalModel(request)),
       signal,
     });
     if (!response.ok || !response.body) {
@@ -204,7 +224,7 @@ export async function streamAgent(request: AgentRequest, onEvent: (event: AgentE
     }
   } catch (error) {
     const aborted = signal?.aborted || (error instanceof DOMException && error.name === "AbortError");
-    const failed: AgentOutcome = { type: "error", detail: aborted ? "已停止。" : "暂时连不上服务，请稍后重试。", status: 0 };
+    const failed: AgentOutcome = { type: "error", detail: aborted ? "已停止。" : error instanceof PersonalModelError ? error.message : "暂时连不上服务，请稍后重试。", status: 0 };
     onEvent(failed);
     return failed;
   }

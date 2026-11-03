@@ -1,3 +1,7 @@
+import { personalModels, PersonalModelError, withPersonalModel } from './personal-models.ts';
+import type { PersonalModelInput } from './model-presets.ts';
+import type { ModelSelection } from './personal-models.ts';
+
 export interface PublicProvider {
   id: string;
   name: string;
@@ -14,6 +18,7 @@ export interface PublicProvider {
   active: boolean;
   /** Hosted providers are configured by the administrator and are read-only. */
   managed?: boolean;
+  personal?: boolean;
 }
 
 export interface CcLocalProvider {
@@ -38,13 +43,26 @@ interface ProviderResponse {
   providers?: PublicProvider[];
   error?: string;
   imported?: number;
+  byok?: { enabled: boolean; allowedHosts: string[] };
+}
+
+let byokCapability: { enabled: boolean; allowedHosts: string[] } = { enabled: false, allowedHosts: [] };
+export function getByokCapability() { return byokCapability; }
+
+export async function inspectPersonalModel(input: PersonalModelInput, action: 'test' | 'models'): Promise<{ ok: boolean; status?: number; detail: string; models?: string[] }> {
+  const response = await fetch('/api/byok/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientProvider: input }), signal: AbortSignal.timeout(55000) });
+  const data = await response.json() as { ok?: boolean; status?: number; detail?: string; error?: string; models?: string[] };
+  return { ok: response.ok && Boolean(data.ok), status: data.status ?? response.status, detail: data.detail || data.error || '请求未完成。', models: data.models };
 }
 
 export async function listProviders(): Promise<PublicProvider[]> {
   const response = await fetch("/api/providers");
   if (!response.ok) return [];
   const body = (await response.json()) as ProviderResponse;
-  return body.providers ?? [];
+  byokCapability = body.byok ?? { enabled: false, allowedHosts: [] };
+  const saved = byokCapability.enabled ? personalModels().list() : [];
+  const usingPersonal = saved.some(item => item.active);
+  return [...(body.providers ?? []).map(item => ({ ...item, active: usingPersonal ? false : item.active })), ...saved.map(item => ({ id: item.id, name: item.name, protocol: item.protocol, role: 'model' as const, baseUrl: item.baseUrl, website: '', model: item.model, hasKey: item.hasKey, keyHint: item.hasKey ? '本页面密钥已填写' : '需要重新填写密钥', active: item.active, personal: true }))];
 }
 
 export async function listCcSwitch(): Promise<{ providers: CcLocalProvider[]; detail: string }> {
@@ -93,6 +111,8 @@ export async function removeProvider(id: string): Promise<void> {
 }
 
 export async function activateProvider(id: string): Promise<void> {
+  if (id.startsWith('personal-')) { personalModels().use(id); return; }
+  if (byokCapability.enabled) { personalModels().use(); return; }
   await fetch("/api/providers/activate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -119,12 +139,12 @@ export async function addProvider(input: { name: string; protocol: "openai" | "c
   return body.error || null;
 }
 
-export async function chatWithModel(messages: Array<{ role: "system" | "user" | "assistant"; content: string }>, signal?: AbortSignal): Promise<{ ok: boolean; text: string; detail: string; model: string }> {
+export async function chatWithModel(messages: Array<{ role: "system" | "user" | "assistant"; content: string }>, signal?: AbortSignal, selection?: ModelSelection): Promise<{ ok: boolean; text: string; detail: string; model: string }> {
   try {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify(selection ? { messages, ...selection } : withPersonalModel({ messages })),
       signal,
     });
     const body = (await response.json()) as { ok?: boolean; text?: string; detail?: string; model?: string; error?: string };
@@ -138,7 +158,7 @@ export async function chatWithModel(messages: Array<{ role: "system" | "user" | 
     if (signal?.aborted || (error instanceof DOMException && error.name === "AbortError")) {
       return { ok: false, text: "", detail: "已停止。", model: "" };
     }
-    return { ok: false, text: "", detail: "没有连上模型服务。", model: "" };
+    return { ok: false, text: "", detail: error instanceof PersonalModelError ? error.message : "没有连上模型服务。", model: "" };
   }
 }
 

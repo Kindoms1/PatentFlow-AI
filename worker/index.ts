@@ -1,6 +1,7 @@
 /**
  * PatentFlow AI on Cloudflare Workers: the built SPA (./dist) plus the /api routes.
- * Model and search keys live only in Worker secrets; the browser never sees them.
+ * Administrator keys live in Worker secrets and never reach the browser.
+ * BYOK credentials are request-scoped, never saved or mixed into administrator configuration.
  * The /api handlers are the same code the Vite dev server runs (server/agent-routes.ts),
  * reached through a small IncomingMessage/ServerResponse shim.
  */
@@ -10,8 +11,12 @@ import { SECURITY, checkCode, clearCookie, gateConfigured, gatePage, issueCookie
 import type { GateEnv } from "./gate.ts";
 import { RateLimiter } from "./rate-limit.ts";
 import { acceptsEventStream, proxyAgentStream } from "./stream-proxy.ts";
+import type { RouteStore } from '../server/agent-routes.ts';
+import { complete, listModels } from '../server/llm-gateway.ts';
+import { byokHosts, parseByok } from './byok.ts';
+import type { ByokEnv } from './byok.ts';
 
-interface Env extends GateEnv {
+interface Env extends GateEnv, ByokEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
   AGNES_API_KEY?: string;
   AGNES_BASE_URL?: string;
@@ -32,7 +37,7 @@ interface Ctx {
 
 const HOUR = 3_600_000;
 const limiter = new RateLimiter();
-const ROUTES = new Set(["/api/agent", "/api/chat", "/api/search", "/api/extract", "/api/radar/run"]);
+const ROUTES = new Set(["/api/agent", "/api/chat", "/api/search", "/api/extract", "/api/radar/run", '/api/byok/test', '/api/byok/models']);
 const LOCKED = "线上版的模型与密钥由管理员统一配置，不能在这里修改。";
 
 function json(status: number, body: unknown): Response {
@@ -124,6 +129,7 @@ function storeFromEnv(env: Env) {
 function publicProviders(env: Env) {
   const store = storeFromEnv(env);
   return {
+    byok: { enabled: env.BYOK_ENABLED !== 'false', allowedHosts: byokHosts(env) },
     providers: store.providers.map((provider) => {
       const icon = inferVendor(provider as never);
       return {
@@ -157,6 +163,7 @@ function sanitize(raw: string, env: Env): string | null {
     return null;
   }
   delete body.providerId;
+  delete body.clientProvider;
   const cap = (key: string, max: number) => {
     if (typeof body[key] === "number") body[key] = Math.min(Math.max(0, body[key] as number), max);
   };
@@ -172,7 +179,7 @@ function sanitize(raw: string, env: Env): string | null {
 }
 
 /** Run one existing /api handler against a Web Request body and return its Response (streamed or JSON). */
-function runRoute(path: string, bodyText: string, env: Env, ctx: Ctx, requestSignal: AbortSignal): Promise<Response> {
+function runRoute(path: string, bodyText: string, env: Env, ctx: Ctx, requestSignal: AbortSignal, store: RouteStore): Promise<Response> {
   const enc = new TextEncoder();
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
@@ -234,7 +241,7 @@ function runRoute(path: string, bodyText: string, env: Env, ctx: Ctx, requestSig
     return ready;
   }
   const routeCtx = {
-    read: () => storeFromEnv(env),
+    read: () => store,
     write: () => {},
     publicView: () => publicProviders(env),
     readBody: async () => bodyText,
@@ -249,16 +256,16 @@ function runRoute(path: string, bodyText: string, env: Env, ctx: Ctx, requestSig
     fetchImpl: ((input: RequestInfo | URL, init?: RequestInit) => {
       if ((path === "/api/agent" || path === "/api/chat") && typeof init?.body === "string") {
         const payload = JSON.parse(init.body) as Record<string, unknown>;
-        if (typeof payload.max_tokens === "number") {
+        for (const parameter of ['max_tokens', 'max_completion_tokens']) if (typeof payload[parameter] === "number") {
           // Shared routes apply their own defaults/minima, including chat's fixed 4096 tokens.
           // Enforce the deployment's per-call cap after those defaults, at the upstream boundary.
-          payload.max_tokens = Math.min(payload.max_tokens, outputTokenCap(env));
+          payload[parameter] = Math.min(payload[parameter] as number, outputTokenCap(env));
           init = { ...init, body: JSON.stringify(payload) };
         }
       }
       const signal = init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal;
       signal.throwIfAborted();
-      return fetch(input, { ...init, signal });
+      return fetch(input, { ...init, signal, redirect: 'manual' });
     }) as typeof fetch,
   };
   const req = { method: "POST", url: path, headers: {} };
@@ -291,24 +298,46 @@ async function api(request: Request, path: string, who: string, env: Env, ctx: C
   const origin = request.headers.get("Origin");
   if (origin && origin !== new URL(request.url).origin) return json(403, { error: "跨站请求被拒绝。" });
 
-  const heavy = path === "/api/agent" || path === "/api/chat";
+  const heavy = path === "/api/agent" || path === "/api/chat" || path.startsWith('/api/byok/');
   const limit = heavy ? num(env.AGENT_PER_HOUR, 30) : num(env.TOOLS_PER_HOUR, 120);
   if (!limiter.allow((heavy ? "llm:" : "tool:") + who, limit, HOUR)) return json(429, { error: "调用太频繁了，请稍后再试。" });
 
   const max = num(env.MAX_BODY_BYTES, 2_000_000);
   const buffer = await readBody(request, max);
   if (buffer instanceof Response) return buffer;
-  const body = sanitize(new TextDecoder().decode(buffer), env);
+  const raw = new TextDecoder().decode(buffer);
+  let selection: unknown;
+  try { selection = (JSON.parse(raw || '{}') as { clientProvider?: unknown })?.clientProvider; } catch { return json(400, { error: '请求格式不对。' }); }
+  let store: RouteStore = storeFromEnv(env);
+  let effectiveEnv = env;
+  if (selection !== undefined || path.startsWith('/api/byok/')) {
+    if (!heavy) return json(400, { error: '个人模型配置只能用于模型调用。' });
+    const provider = parseByok(selection, env, path === '/api/byok/models');
+    if (typeof provider === 'string') return json(400, { error: provider });
+    // No administrator model credentials enter this request-scoped store.
+    store = { activeModelId: provider.id, providers: [provider, ...store.providers.filter(item => item.role === 'search')] };
+    effectiveEnv = { ...env, MAX_OUTPUT_TOKENS: String(Math.min(outputTokenCap(env), provider.maxOutputTokens)) };
+    if (path.startsWith('/api/byok/')) {
+      const fetchImpl: typeof fetch = (input, init) => fetch(input, { ...init, redirect: 'manual' });
+      if (path === '/api/byok/models') {
+        const result = await listModels(provider, { fetchImpl, signal: request.signal });
+        return json(200, { ok: result.ok, detail: result.detail, models: result.models });
+      }
+      const started = Date.now();
+      const result = await complete(provider, [{ role: 'user', content: '只回复：连接成功' }], { stream: false, maxTokens: Math.min(512, provider.maxOutputTokens), timeoutMs: 45000, signal: request.signal, fetchImpl });
+      return json(200, { ok: result.ok && Boolean(result.text.trim()), status: result.status, detail: result.ok ? '连接成功；仅验证短回答，长文与工具能力请另行测试。' : result.detail, model: provider.model, durationMs: Date.now() - started });
+    }
+  }
+  const body = sanitize(raw, effectiveEnv);
   if (body === null) return json(400, { error: "请求格式不对。" });
   if (path === "/api/agent" && acceptsEventStream(request.headers.get("Accept"))) {
     const parsed = JSON.parse(body) as Record<string, unknown>;
     if (parsed.tools === false) {
-      const store = storeFromEnv(env);
       const provider = store.providers.find((item) => item.id === store.activeModelId)!;
       return proxyAgentStream({ provider, searchSecret: env.ANYSEARCH_API_KEY, messages: cleanMessages(parsed.messages), maxTokens: parsed.maxTokens as number, signal: request.signal });
     }
   }
-  return runRoute(path, body, env, ctx, request.signal);
+  return runRoute(path, body, effectiveEnv, ctx, request.signal, store);
 }
 
 function clientIp(request: Request): string {

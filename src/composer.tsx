@@ -9,6 +9,7 @@ import { VendorMark } from "./vendor-mark.tsx";
 import { Glyph } from "./glyph.tsx";
 import { createHistory, recordEdit, redoEdit, undoEdit, type EditHistory } from "./edit-history.ts";
 import { sizeLabel } from "./page-count.ts";
+import { PERSONAL_MODELS_CHANGED } from './personal-models.ts';
 
 export function Composer({
   value,
@@ -53,7 +54,8 @@ export function Composer({
 
   useEffect(() => {
     const timer = window.setTimeout(reload, 0);
-    return () => window.clearTimeout(timer);
+    window.addEventListener(PERSONAL_MODELS_CHANGED, reload);
+    return () => { window.clearTimeout(timer); window.removeEventListener(PERSONAL_MODELS_CHANGED, reload); };
   }, []);
 
   useEffect(() => {
@@ -209,9 +211,10 @@ export function Composer({
           </button>
         ) : null}
         <div className="model-picker" ref={pickerRef}>
-          <button className="model-pill" type="button" aria-haspopup="dialog" aria-expanded={open} title="切换模型（点外面或按 Esc 关闭）" onClick={toggleMenu}>
+          <button className="model-pill" type="button" disabled={busy} aria-haspopup="dialog" aria-expanded={open} title={busy ? "等本轮完成后再切换模型" : "切换模型（点外面或按 Esc 关闭）"} onClick={toggleMenu}>
             <VendorMark icon={active?.icon} name={active?.name} model={active?.model} website={active?.website} color={active?.iconColor} size={16} />
             {appearance === "harness" ? (active?.model || active?.name || "选择模型") : active ? active.name : "选择模型"}
+            {active?.personal ? <span className="model-source">{active.hasKey ? '个人 Key' : '待填 Key'}</span> : active?.managed ? <span className="model-source">站点默认</span> : null}
             {appearance === "harness" ? <Glyph name="chevron" /> : <small>{active?.model || active?.protocol || ""}</small>}
           </button>
           <AnimatePresence>

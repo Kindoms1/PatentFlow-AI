@@ -4,6 +4,7 @@ import { activateProvider, addProvider, importCcSwitch, listCcSwitch, selectProv
 import type { CcLocalProvider, PublicProvider } from "./provider-api.ts";
 import { VendorMark } from "./vendor-mark.tsx";
 import { useStore } from "./store.tsx";
+import { PersonalModelsPanel } from './personal-models-panel.tsx';
 
 export function ModelMenu({
   providers,
@@ -19,8 +20,8 @@ export function ModelMenu({
   const [detail, setDetail] = useState("正在读取 CC Switch 配置。");
   const [adding, setAdding] = useState<"off" | "import" | "manual">("off");
   const [busy, setBusy] = useState("");
-  const models = providers.filter((item) => item.role === "model");
-  const managedOnly = providers.length > 0 && providers.every((item) => item.managed);
+  const models = providers.filter((item) => item.role === "model" && !item.personal);
+  const managedOnly = providers.some((item) => item.managed);
 
   const loadLocal = () => {
     void listCcSwitch().then((found) => {
@@ -38,7 +39,6 @@ export function ModelMenu({
   // One click on a provider card uses its current model, or the first listed model when none is set yet.
   // The chips under the card are only for switching to a different model of the same provider.
   const pickSaved = (item: PublicProvider, model?: string) => {
-    if (item.managed) return;
     const target = model || item.model || item.models?.[0] || "";
     if (item.active && target === item.model) {
       onChanged();
@@ -85,7 +85,7 @@ export function ModelMenu({
             pickSaved(item);
           }}
         >
-          <button type="button" className={item.active ? "model-row active" : "model-row"} disabled={item.managed} onClick={() => pickSaved(item)}>
+          <button type="button" className={item.active ? "model-row active" : "model-row"} disabled={!!busy} onClick={() => pickSaved(item)}>
             <VendorMark icon={item.icon} name={item.name} model={item.model} website={item.website} color={item.iconColor} />
             <span>
               <b>{item.model || item.name}</b>
@@ -110,7 +110,7 @@ export function ModelMenu({
           ) : null}
         </div>
       ))}
-      {managedOnly ? <p className="fine">模型由管理员统一配置。如需更换，请联系管理员。</p> : <>
+      {managedOnly ? <><p className="fine">站点默认模型由管理员维护；也可在下面使用自己的模型与额度。</p><PersonalModelsPanel onChanged={onChanged} /></> : <>
         <CcSwitchShelf local={local} detail={detail} busy={busy} onRefresh={loadLocal} onUse={useLocal} />
         <button type="button" className="add-model" onClick={() => setAdding((value) => (value === "import" ? "off" : "import"))}>粘贴 CC Switch 链接</button>
         {compactImport ? <button type="button" className="add-model" onClick={() => setAdding((value) => (value === "manual" ? "off" : "manual"))}>手动填写</button> : null}

@@ -8,6 +8,7 @@ import type { PublicProvider } from "./provider-api.ts";
 import { ImportPanel } from "./import-panel.tsx";
 import { LibraryPanel } from "./library-panel.tsx";
 import { CcSwitchShelf } from "./model-menu.tsx";
+import { PersonalModelsPanel } from './personal-models-panel.tsx';
 import { VendorMark } from "./vendor-mark.tsx";
 import { readUserFile } from "./read-user-file.ts";
 import { useStore } from "./store.tsx";
@@ -437,7 +438,7 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [localDetail, setLocalDetail] = useState("正在读取 CC Switch 配置。");
   const [busy, setBusy] = useState("");
   const [ready, setReady] = useState(false);
-  const managedOnly = providers.length > 0 && providers.every((item) => item.managed);
+  const managedOnly = providers.some((item) => item.managed);
 
   const reload = async () => {
     setProviders(await listProviders());
@@ -470,8 +471,8 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
     };
   }, []);
 
-  const openai = providers.filter((item) => item.role === "model" && item.protocol === "openai");
-  const claude = providers.filter((item) => item.role === "model" && item.protocol === "claude");
+  const openai = providers.filter((item) => item.role === "model" && item.protocol === "openai" && !item.personal);
+  const claude = providers.filter((item) => item.role === "model" && item.protocol === "claude" && !item.personal);
   const search = providers.filter((item) => item.role === "search");
 
   return (
@@ -480,7 +481,7 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
         <>
           <p className="kicker">模型</p>
           <h1>模型与工具</h1>
-          <p className="lede">{managedOnly ? "模型和检索服务由管理员统一配置，当前页面只读。" : "提供方按 OpenAI 协议和 Claude 协议分开。密钥只保存在服务端，页面只显示末四位。"}</p>
+          <p className="lede">{managedOnly ? "站点默认服务由管理员维护；你也可以配置自己的模型和 API Key。个人配置不会影响其他用户。" : "提供方按 OpenAI 协议和 Claude 协议分开。密钥只保存在服务端，页面只显示末四位。"}</p>
         </>
       )}
       {ready && !managedOnly ? <CcSwitchShelf
@@ -505,7 +506,7 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
           });
         }}
       /> : null}
-      {managedOnly ? <p className="fine">模型和检索服务由管理员统一配置。如需调整，请联系管理员。</p> : null}
+      {managedOnly ? <PersonalModelsPanel onChanged={() => void reload()} /> : null}
       {ready ? (
         <>
           <ProviderGroup title="OpenAI 协议" items={openai} busy={busy} setBusy={setBusy} reload={reload} notify={notify} />
@@ -635,8 +636,8 @@ export function SettingsPage() {
         <button className="btn ghost" type="button" onClick={() => { markKnowledgeBack("workbench"); setView("knowledge"); }}>打开知识库</button>
       </article>
       <article className="panel">
-        <h2>私有发明默认不外发</h2>
-        <p>案件正文不会发给 AnySearch。只有当前模型的对话请求会离开浏览器，密钥只保存在服务端。</p>
+        <h2>材料与模型隐私</h2>
+        <p>模型操作会将相关材料发送给当前模型服务；检索会发送查询词或网址，不发送整份案件正文。站点默认 Key 保存在服务端；个人 Key 默认仅保留在当前页面，使用时经本站网关转发。可选的标签页记忆并非加密存储，请勿在共享电脑上启用。</p>
       </article>
       <article className="panel">
         <h2>数据管理</h2>

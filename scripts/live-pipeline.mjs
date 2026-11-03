@@ -26,8 +26,10 @@ globalThis.fetch = (url, init) => {
   if (typeof url !== 'string' || !url.startsWith('/api/')) throw new Error('Unexpected browser-side request in integration test.');
   metrics.push({ path:url, at:new Date().toISOString() });
   const number = String(metrics.length).padStart(3,'0');
-  // Synthetic test requests only. Never persist Cookie/Authorization headers.
-  fs.writeFileSync(path.join(out,number+'-request.json'),String(init?.body || '{}'));
+  // Synthetic test requests only. Never persist Cookie/Authorization or BYOK keys.
+  const recordedBody = JSON.parse(String(init?.body || '{}'));
+  if (recordedBody.clientProvider) recordedBody.clientProvider = { ...recordedBody.clientProvider, apiKey: '[REDACTED]' };
+  fs.writeFileSync(path.join(out,number+'-request.json'),JSON.stringify(recordedBody));
   return nativeFetch(new URL(url,base), { ...init, headers:{ ...init?.headers, Cookie:cookie } }).then(response=>{
     // Handle cloning, reading and writing failures before the pipeline continues.
     // Exception text can contain upstream details; report only request metadata.

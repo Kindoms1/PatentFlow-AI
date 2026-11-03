@@ -1,5 +1,5 @@
 import type { AgentEvent, AgentRequest } from "../src/agent-events.ts";
-import { describeStatus, joinUrl, SECRET_MASK } from "../server/llm-gateway.ts";
+import { describeStatus, joinUrl, modelTokenOptions, toClaudePayload, SECRET_MASK } from "../server/llm-gateway.ts";
 import type { GatewayProvider } from "../server/llm-gateway.ts";
 import { SECURITY } from "./gate.ts";
 
@@ -153,7 +153,7 @@ export async function proxyAgentStream({ provider, searchSecret, messages, maxTo
   const keys = [...new Set([provider.secret, searchSecret].filter((key): key is string => Boolean(key)))].sort((a, b) => b.length - a.length);
   const scrub = (text: string) => keys.reduce((value, key) => value.split(key).join(SECRET_MASK), text);
   const model = scrub(provider.model || provider.name);
-  const headers = { ...SECURITY, "Cache-Control": "no-cache, no-transform", "X-PatentFlow-Model": model, "X-PatentFlow-Provider": scrub(provider.name) };
+  const headers = { ...SECURITY, "Cache-Control": "no-cache, no-transform", "X-PatentFlow-Model": encodeURIComponent(model), "X-PatentFlow-Provider": encodeURIComponent(scrub(provider.name)), 'X-PatentFlow-Protocol': provider.protocol };
   const failure = (status: number, error: string) => new Response(JSON.stringify({ error: scrub(error) }), { status, headers: { ...headers, "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8" } });
   const ndjson = (events: AgentEvent[]) => new Response(events.map((event) => JSON.stringify(event)).join("\n") + "\n", { headers: { ...headers, "Content-Type": "application/x-ndjson; charset=utf-8" } });
   if (!provider.secret) return failure(409, "当前模型没有服务端密钥。");
@@ -166,10 +166,13 @@ export async function proxyAgentStream({ provider, searchSecret, messages, maxTo
   let response: Response;
   try {
     fetchSignal.throwIfAborted();
-    response = await fetch(joinUrl(provider.baseUrl, "chat/completions"), {
+    const claude = provider.protocol === 'claude';
+    const auth: Record<string, string> = claude ? { 'anthropic-version': '2023-06-01', ...(provider.auth === 'x-api-key' ? { 'x-api-key': provider.secret } : { Authorization: 'Bearer ' + provider.secret }) } : { Authorization: 'Bearer ' + provider.secret };
+    const payload = claude ? { model: provider.model, ...toClaudePayload(messages), max_tokens: maxTokens, stream: true } : { model: provider.model, messages, ...modelTokenOptions(provider, maxTokens), stream: true, ...(deepseekV4 ? { thinking: { type: 'disabled' } } : {}) };
+    response = await fetch(joinUrl(provider.baseUrl, claude ? 'messages' : 'chat/completions'), {
       method: "POST", redirect: "manual", signal: fetchSignal,
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream, application/json", Authorization: "Bearer " + provider.secret },
-      body: JSON.stringify({ model: provider.model, messages, max_tokens: maxTokens, stream: true, ...(deepseekV4 ? { thinking: { type: "disabled" } } : {}) }),
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream, application/json", ...auth },
+      body: JSON.stringify(payload),
     });
   } catch {
     return failure(signal.aborted ? 499 : 502, signal.aborted ? "请求已取消。" : "模型连接失败，请稍后重试。");
@@ -188,16 +191,17 @@ export async function proxyAgentStream({ provider, searchSecret, messages, maxTo
   try {
     const payload = record(await readJsonBody(body));
     const choice = record(Array.isArray(payload.choices) ? payload.choices[0] : undefined);
-    const content = record(choice.message ?? choice.delta).content;
+    const content = provider.protocol === 'claude' ? payload.content : record(choice.message ?? choice.delta).content;
     const text = scrub(typeof content === "string" ? content : Array.isArray(content) ? content.map((part) => { const value = record(part).text; return typeof value === "string" ? value : ""; }).join("") : "");
     if (payload.error || !text.trim()) return ndjson([{ type: "error", detail: "模型未返回可用的回答。", status: 502 }]);
+    if (choice.finish_reason === 'length' || payload.stop_reason === 'max_tokens') return ndjson([{ type: 'error', detail: '模型输出达到长度上限，回答不完整，请调整输出上限或缩小任务。', status: 422 }]);
     const usage = record(payload.usage);
     const count = (value: unknown) => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
     return ndjson([
       { type: "start", model, provider: scrub(provider.name), tools: [] },
       { type: "step", step: 1, label: "理解材料与问题" },
       { type: "delta", text },
-      { type: "done", text, sources: [], steps: 1, model, usage: { input: count(usage.prompt_tokens), output: count(usage.completion_tokens) } },
+      { type: "done", text, sources: [], steps: 1, model, usage: { input: count(usage.prompt_tokens ?? usage.input_tokens), output: count(usage.completion_tokens ?? usage.output_tokens) } },
     ]);
   } catch {
     return ndjson([{ type: "error", detail: signal.aborted ? "已停止。" : "模型返回了无法解析或过大的内容。", status: signal.aborted ? 0 : 502 }]);

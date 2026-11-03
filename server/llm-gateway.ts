@@ -14,6 +14,7 @@ export interface GatewayProvider {
   model: string;
   secret: string;
   auth: string;
+  tokenParameter?: 'auto' | 'max_tokens' | 'max_completion_tokens';
 }
 
 export interface ToolSpec {
@@ -97,8 +98,14 @@ export function joinUrl(baseUrl: string, suffix: "chat/completions" | "messages"
     .trim()
     .replace(/\/+$/, "")
     .replace(/\/(chat\/completions|messages|models)$/, "");
-  if (/\/v\d+(beta)?$/i.test(root)) return `${root}/${suffix}`;
+  if (/\/v\d+(?:beta\d*)?(?:\/openai)?$/i.test(root) || /\/(chat\/completions|messages|models)\/?$/.test(baseUrl.trim())) return `${root}/${suffix}`;
   return `${root}/v1/${suffix}`;
+}
+
+export function modelTokenOptions(provider: GatewayProvider, count: number): Record<string, number> {
+  const completion = provider.protocol !== 'claude' && (provider.tokenParameter === 'max_completion_tokens'
+    || ((!provider.tokenParameter || provider.tokenParameter === 'auto') && /^https:\/\/api\.openai\.com(?:\/|$)/i.test(provider.baseUrl)));
+  return { [completion ? 'max_completion_tokens' : 'max_tokens']: count };
 }
 
 export function redact(text: string, secrets: Array<string | undefined>): string {
@@ -523,7 +530,7 @@ export async function complete(provider: GatewayProvider, turns: Turn[], options
     url = joinUrl(provider.baseUrl, "messages");
     body = {
       model: provider.model || "claude-sonnet-4-5",
-      max_tokens: options.maxTokens ?? 4096,
+      ...modelTokenOptions(provider, options.maxTokens ?? 4096),
       messages: payload.messages,
       stream,
       ...(payload.system ? { system: payload.system } : {}),
@@ -541,7 +548,7 @@ export async function complete(provider: GatewayProvider, turns: Turn[], options
     body = {
       model: provider.model || "gpt-4o-mini",
       messages: toOpenAiMessages(turns),
-      max_tokens: options.maxTokens ?? 4096,
+      ...modelTokenOptions(provider, options.maxTokens ?? 4096),
       stream,
       ...(deepseekV4 ? { thinking: { type: "disabled" } } : {}),
       ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
@@ -671,7 +678,8 @@ export async function listModels(
         (list as unknown[])
           .map((item) => (typeof item === "string" ? item : item && typeof item === "object" ? String((item as Json).id ?? (item as Json).name ?? "") : ""))
           .map((item) => item.replace(/^models\//, "").trim())
-          .filter(Boolean),
+          .filter(item => item.length > 0 && item.length <= 256 && !item.includes(provider.secret))
+          .slice(0, 1000),
       ),
     ];
     return { ok: models.length > 0, status: response.status, models, detail: models.length ? `读到 ${models.length} 个模型。` : "上游没有列出模型。" };
