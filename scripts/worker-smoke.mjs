@@ -25,22 +25,24 @@ function check(name, ok, info) {
   console.log((ok ? "PASS " : "FAIL ") + name + (info !== undefined ? " | " + safeInfo.replace(/\s+/g, " ").slice(0, 160) : ""));
 }
 const clean = (text) => !SECRETS.some((secret) => text.includes(secret));
+const access = await fetch(BASE + '/api/access').then(r => r.json());
+const OPEN = access.mode === 'public';
 
 let r = await fetch(BASE + "/", { redirect: "manual" });
 let t = await r.text();
-check("未登录打开首页 -> 邀请码页 401", r.status === 401 && t.includes("邀请码"), r.status);
+check(OPEN ? '首次打开首页 -> 无邀请码公告页' : '未登录打开首页 -> 邀请码页 401', r.status === (OPEN ? 200 : 401) && t.includes(OPEN ? '无需邀请码' : '邀请码'), r.status);
 r = await fetch(BASE + "/assets/", { redirect: "manual" });
-check("未登录拿不到前端代码", r.status === 401, r.status);
+check('未知悉公告拿不到前端代码', r.status === (OPEN ? 200 : 401), r.status);
 r = await fetch(BASE + "/api/providers");
-check("未登录调用 API -> 401", r.status === 401, r.status);
-r = await fetch(BASE + "/__access", { method: "POST", body: new URLSearchParams({ code: "wrong-code-123" }), redirect: "manual" });
-check("错误邀请码不发 cookie", r.status === 303 && !r.headers.get("set-cookie"), r.status);
-r = await fetch(BASE + "/__access", { method: "POST", body: new URLSearchParams({ code: CODE, notice: NOTICE_VERSION }), redirect: "manual" });
+check('未知悉公告调用 API 被拒绝', r.status === (OPEN ? 428 : 401), r.status);
+r = await fetch(BASE + (OPEN ? '/__notice' : '/__access'), { method: 'POST', body: new URLSearchParams(OPEN ? { notice: 'invalid-version' } : { code: 'wrong-code-123' }), redirect: 'manual' });
+check(OPEN ? '无效公告版本不发 cookie' : '错误邀请码不发 cookie', r.status === (OPEN ? 200 : 303) && !r.headers.get('set-cookie'), r.status);
+r = await fetch(BASE + (OPEN ? '/__notice' : '/__access'), { method: 'POST', body: new URLSearchParams(OPEN ? { notice: NOTICE_VERSION } : { code: CODE, notice: NOTICE_VERSION }), redirect: 'manual' });
 const setCookie = r.headers.get("set-cookie") || "";
 const cookie = setCookie.split(";")[0];
-check("正确邀请码 -> HttpOnly cookie", r.status === 303 && cookie.startsWith("pf_session=") && /HttpOnly/i.test(setCookie), r.status);
+check(OPEN ? '无需邀请码确认公告 -> HttpOnly cookie' : '正确邀请码 -> HttpOnly cookie', r.status === 303 && cookie.startsWith('pf_session=') && /HttpOnly/i.test(setCookie), r.status);
 r = await fetch(BASE + "/api/providers", { headers: { Cookie: cookie.slice(0, -3) + "AAA" } });
-check("篡改 cookie -> 401", r.status === 401, r.status);
+check('篡改 cookie 被拒绝', r.status === (OPEN ? 428 : 401), r.status);
 
 const H = { Cookie: cookie, "Content-Type": "application/json" };
 r = await fetch(BASE + "/", { headers: { Cookie: cookie } });

@@ -7,6 +7,10 @@
   "compatibility_date": "2026-10-01",
   "workers_dev": true,
   "preview_urls": false,
+  "durable_objects": {
+    "bindings": [{ "name": "PUBLIC_QUOTA", "class_name": "PublicQuota" }]
+  },
+  "migrations": [{ "tag": "public-quota-v1", "new_sqlite_classes": ["PublicQuota"] }],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -14,6 +18,9 @@
     "run_worker_first": true
   },
   "vars": {
+    "ACCESS_MODE": "public",
+    "PUBLIC_DAILY_MODEL_CALLS": "60",
+    "PUBLIC_DAILY_SEARCH_CALLS": "300",
     "AGENT_PER_HOUR": "30",
     "TOOLS_PER_HOUR": "120",
     "MAX_BODY_BYTES": "2000000",

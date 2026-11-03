@@ -7,7 +7,7 @@
  */
 import { cleanMessages, handleAgentRoute } from "../server/agent-routes.ts";
 import { inferVendor, vendorColor } from "../src/vendor.ts";
-import { SECURITY, checkCode, clearCookie, gateConfigured, gatePage, hasCurrentNotice, issueCookie, noticePage, redirect, session } from "./gate.ts";
+import { SECURITY, checkCode, clearCookie, gateConfigured, gatePage, hasCurrentNotice, issueCookie, noticePage, publicAccess, redirect, session } from "./gate.ts";
 import { NOTICE_VERSION } from '../src/site-info.ts';
 import type { GateEnv } from "./gate.ts";
 import { RateLimiter } from "./rate-limit.ts";
@@ -16,8 +16,10 @@ import type { RouteStore } from '../server/agent-routes.ts';
 import { complete, listModels } from '../server/llm-gateway.ts';
 import { byokHosts, parseByok } from './byok.ts';
 import type { ByokEnv } from './byok.ts';
+import { quotaFetch, quotaLimit, type PublicQuotaEnv } from './public-quota.ts';
+export { PublicQuota } from './public-quota.ts';
 
-interface Env extends GateEnv, ByokEnv {
+interface Env extends GateEnv, ByokEnv, PublicQuotaEnv {
   ASSETS: { fetch(request: Request): Promise<Response> };
   AGNES_API_KEY?: string;
   AGNES_BASE_URL?: string;
@@ -142,6 +144,7 @@ function publicProviders(env: Env) {
   const store = storeFromEnv(env);
   return {
     byok: { enabled: env.BYOK_ENABLED !== 'false', allowedHosts: byokHosts(env) },
+    access: { mode: publicAccess(env) ? 'public' : 'invite', dailySharedModelCalls: quotaLimit(env, 'model'), dailySharedSearchCalls: quotaLimit(env, 'search'), resetsAt: '北京时间 00:00' },
     providers: store.providers.map((provider) => {
       const icon = inferVendor(provider as never);
       return {
@@ -197,6 +200,7 @@ function sanitize(raw: string, env: Env): string | null {
 
 /** Run one existing /api handler against a Web Request body and return its Response (streamed or JSON). */
 function runRoute(path: string, bodyText: string, env: Env, ctx: Ctx, requestSignal: AbortSignal, store: RouteStore): Promise<Response> {
+  const upstream = quotaFetch(env, store.activeModelId === 'byok' ? undefined : store.providers.find(item => item.id === store.activeModelId)?.secret, env.ANYSEARCH_API_KEY);
   const enc = new TextEncoder();
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
@@ -282,7 +286,7 @@ function runRoute(path: string, bodyText: string, env: Env, ctx: Ctx, requestSig
       }
       const signal = init?.signal ? AbortSignal.any([init.signal, controller.signal]) : controller.signal;
       signal.throwIfAborted();
-      return fetch(input, { ...init, signal, redirect: 'manual' });
+      return upstream(input, { ...init, signal, redirect: 'manual' });
     }) as typeof fetch,
   };
   const req = { method: "POST", url: path, headers: {} };
@@ -338,7 +342,8 @@ async function api(request: Request, path: string, who: string, env: Env, ctx: C
     store = { ...store, activeModelId: provider.id };
     if (path === '/api/site-models/test') {
       const started = Date.now();
-      const result = await complete(provider, [{ role: 'user', content: '只回复：连接成功' }], { stream: false, maxTokens: Math.min(512, outputTokenCap(env)), timeoutMs: 45000, signal: request.signal, fetchImpl: (input, init) => fetch(input, { ...init, redirect: 'manual' }) });
+      const upstream = quotaFetch(env, provider.secret);
+      const result = await complete(provider, [{ role: 'user', content: '只回复：连接成功' }], { stream: false, maxTokens: Math.min(512, outputTokenCap(env)), timeoutMs: 45000, signal: request.signal, fetchImpl: (input, init) => upstream(input, { ...init, redirect: 'manual' }) });
       return json(200, { ok: result.ok && Boolean(result.text.trim()), status: result.status, detail: result.ok ? '短连接测试成功，但不代表连续长文或全套生成通过；启用状态仍由管理员决定。' : result.detail, model: provider.model, durationMs: Date.now() - started });
     }
     if (provider.id === 'agnes-secondary' && env.AGNES_SECONDARY_STATUS !== 'ready') return json(503, { error: 'Agnes 暂不可用：最近的云端验证尚未通过。请使用站点默认或个人模型；不会自动替你切换。' });
@@ -367,7 +372,7 @@ async function api(request: Request, path: string, who: string, env: Env, ctx: C
     const parsed = JSON.parse(body) as Record<string, unknown>;
     if (parsed.tools === false) {
       const provider = store.providers.find((item) => item.id === store.activeModelId)!;
-      return proxyAgentStream({ provider, searchSecret: env.ANYSEARCH_API_KEY, messages: cleanMessages(parsed.messages), maxTokens: parsed.maxTokens as number, signal: request.signal });
+      return proxyAgentStream({ provider, searchSecret: env.ANYSEARCH_API_KEY, messages: cleanMessages(parsed.messages), maxTokens: parsed.maxTokens as number, signal: request.signal, fetchImpl: quotaFetch(env, provider.id === 'byok' ? undefined : provider.secret) });
     }
   }
   return runRoute(path, body, effectiveEnv, ctx, request.signal, store);
@@ -382,10 +387,12 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     if (!gateConfigured(env)) {
-      return new Response("站点还没有配置 ACCESS_CODES / SESSION_SECRET。", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", ...SECURITY } });
+      return new Response(publicAccess(env) ? '站点还没有配置 SESSION_SECRET。' : '站点还没有配置 ACCESS_CODES / SESSION_SECRET。', { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", ...SECURITY } });
     }
+    if (path === '/api/access' && request.method === 'GET') return json(200, { mode: publicAccess(env) ? 'public' : 'invite', noticeVersion: NOTICE_VERSION, requiresInvite: !publicAccess(env) });
 
     if (path === "/__access" && request.method === "POST") {
+      if (publicAccess(env)) return redirect('/');
       const origin = request.headers.get("Origin");
       if (origin && origin !== url.origin) return json(403, { error: "跨站请求被拒绝。" });
       if (!limiter.allow("login:" + clientIp(request), 10, 600_000)) return redirect("/?e=2");
@@ -402,24 +409,30 @@ export default {
 
     const who = await session(request, env);
     if (path === '/__notice' && request.method === 'POST') {
-      if (!who) return redirect('/');
+      if (!who && !publicAccess(env)) return redirect('/');
       const origin = request.headers.get('Origin');
       if (origin && origin !== url.origin) return json(403, { error: '跨站请求被拒绝。' });
+      if (publicAccess(env) && !limiter.allow('notice:' + clientIp(request), 20, 600_000)) return json(429, { error: '请求太频繁，请稍后再试。' });
       const body = await readBody(request, 16_384);
       if (body instanceof Response) return body;
       const form = await new Response(body, { headers: request.headers }).formData().catch(() => null);
-      if (form?.get('notice') !== NOTICE_VERSION) return noticePage('3');
-      return redirect('/', await issueCookie(env, who, true));
+      if (form?.get('notice') !== NOTICE_VERSION) return noticePage('3', publicAccess(env));
+      const visitor = who || crypto.randomUUID().replaceAll('-', '').slice(0, 12);
+      return redirect('/', await issueCookie(env, visitor, true));
     }
     if (!who) {
+      if (publicAccess(env)) {
+        if (path.startsWith('/api/')) return json(428, { error: '请先阅读并知悉使用公告。无需邀请码。', code: 'NOTICE_REQUIRED', noticeVersion: NOTICE_VERSION });
+        return noticePage(null, true);
+      }
       if (path.startsWith("/api/")) return json(401, { error: "请先输入邀请码。" });
       return gatePage(url.searchParams.get("e"));
     }
     if (!hasCurrentNotice(request)) {
       if (path.startsWith('/api/')) return json(428, { error: '请刷新页面，阅读并确认当前使用公告后再使用。', code: 'NOTICE_REQUIRED', noticeVersion: NOTICE_VERSION });
-      return noticePage();
+      return noticePage(null, publicAccess(env));
     }
-    if (path.startsWith("/api/")) return api(request, path, who, env, ctx);
+    if (path.startsWith("/api/")) return api(request, path, publicAccess(env) ? 'public-ip:' + clientIp(request) : who, env, ctx);
 
     const asset = await env.ASSETS.fetch(request);
     const out = new Response(asset.body, asset);

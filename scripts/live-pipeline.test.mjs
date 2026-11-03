@@ -38,6 +38,7 @@ async function runFixture(scenario) {
     model: 'synthetic-model', at: '2026-11-03T00:00:00.000Z',
   };
   const nativeFetch = async url => {
+    if (String(url).endsWith('/api/access')) return Response.json({ mode: 'invite' });
     if (String(url).endsWith('/__access')) {
       return new Response(null, { status: 303, headers: { 'set-cookie': cookie + '; HttpOnly' } });
     }

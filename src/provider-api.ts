@@ -47,10 +47,13 @@ interface ProviderResponse {
   error?: string;
   imported?: number;
   byok?: { enabled: boolean; allowedHosts: string[] };
+  access?: { mode: string; dailySharedModelCalls: number; dailySharedSearchCalls: number; resetsAt: string };
 }
 
 let byokCapability: { enabled: boolean; allowedHosts: string[] } = { enabled: false, allowedHosts: [] };
 let hostedProviders = false;
+let accessPolicy: ProviderResponse['access'];
+export function getAccessPolicy() { return accessPolicy; }
 export function getByokCapability() { return byokCapability; }
 
 export async function inspectPersonalModel(input: PersonalModelInput, action: 'test' | 'models'): Promise<{ ok: boolean; status?: number; detail: string; models?: string[] }> {
@@ -64,6 +67,7 @@ export async function listProviders(): Promise<PublicProvider[]> {
   if (!response.ok) return [];
   const body = (await response.json()) as ProviderResponse;
   byokCapability = body.byok ?? { enabled: false, allowedHosts: [] };
+  accessPolicy = body.access;
   hostedProviders = Boolean(body.providers?.some(item => item.managed));
   const saved = byokCapability.enabled ? personalModels().list() : [];
   const usingPersonal = saved.some(item => item.active);

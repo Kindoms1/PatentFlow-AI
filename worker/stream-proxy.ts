@@ -2,6 +2,7 @@ import type { AgentEvent, AgentRequest } from "../src/agent-events.ts";
 import { describeStatus, joinUrl, modelTokenOptions, toClaudePayload, SECRET_MASK } from "../server/llm-gateway.ts";
 import type { GatewayProvider } from "../server/llm-gateway.ts";
 import { SECURITY } from "./gate.ts";
+import { quotaMessage } from './public-quota.ts';
 
 const enc = new TextEncoder();
 const replacement = enc.encode(SECRET_MASK);
@@ -141,6 +142,7 @@ async function readJsonBody(body: ReadableStream<Uint8Array>): Promise<unknown> 
 }
 
 export interface StreamProxyOptions {
+  fetchImpl?: typeof fetch;
   provider: GatewayProvider;
   searchSecret?: string;
   /** Already filtered by cleanMessages and the Worker's request-size and token limits. */
@@ -149,7 +151,7 @@ export interface StreamProxyOptions {
   signal: AbortSignal;
 }
 
-export async function proxyAgentStream({ provider, searchSecret, messages, maxTokens, signal }: StreamProxyOptions): Promise<Response> {
+export async function proxyAgentStream({ provider, searchSecret, messages, maxTokens, signal, fetchImpl = fetch }: StreamProxyOptions): Promise<Response> {
   const keys = [...new Set([provider.secret, searchSecret].filter((key): key is string => Boolean(key)))].sort((a, b) => b.length - a.length);
   const scrub = (text: string) => keys.reduce((value, key) => value.split(key).join(SECRET_MASK), text);
   const model = scrub(provider.model || provider.name);
@@ -169,7 +171,7 @@ export async function proxyAgentStream({ provider, searchSecret, messages, maxTo
     const claude = provider.protocol === 'claude';
     const auth: Record<string, string> = claude ? { 'anthropic-version': '2023-06-01', ...(provider.auth === 'x-api-key' ? { 'x-api-key': provider.secret } : { Authorization: 'Bearer ' + provider.secret }) } : { Authorization: 'Bearer ' + provider.secret };
     const payload = claude ? { model: provider.model, ...toClaudePayload(messages), max_tokens: maxTokens, stream: true } : { model: provider.model, messages, ...modelTokenOptions(provider, maxTokens), stream: true, ...(deepseekV4 ? { thinking: { type: 'disabled' } } : {}) };
-    response = await fetch(joinUrl(provider.baseUrl, claude ? 'messages' : 'chat/completions'), {
+    response = await fetchImpl(joinUrl(provider.baseUrl, claude ? 'messages' : 'chat/completions'), {
       method: "POST", redirect: "manual", signal: fetchSignal,
       headers: { "Content-Type": "application/json", Accept: "text/event-stream, application/json", ...auth },
       body: JSON.stringify(payload),
@@ -179,6 +181,8 @@ export async function proxyAgentStream({ provider, searchSecret, messages, maxTo
   }
   if (!response.ok) {
     void response.body?.cancel().catch(() => {});
+    const quota = response.headers.get('X-PatentFlow-Quota');
+    if (quota === 'model' || quota === 'search' || quota === 'unavailable') return failure(response.status, quotaMessage(quota));
     const status = response.status >= 400 && response.status <= 599 ? response.status : 502;
     return failure(status, describeStatus(status));
   }

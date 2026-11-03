@@ -21,9 +21,10 @@ const mock = process.argv.includes("--mock");
 const env = parse(".env.local");
 const prev = parse(".dev.vars");
 const out = {
-  ACCESS_CODES: prev.ACCESS_CODES || "pf-" + crypto.randomBytes(6).toString("hex"),
+  ACCESS_MODE: mock ? 'invite' : env.ACCESS_MODE || 'public',
   SESSION_SECRET: prev.SESSION_SECRET || crypto.randomBytes(32).toString("hex"),
 };
+if (out.ACCESS_MODE === 'invite') out.ACCESS_CODES = prev.ACCESS_CODES || 'pf-' + crypto.randomBytes(6).toString('hex');
 if (mock) {
   Object.assign(out, {
     AGNES_API_KEY: "mock-model-key",

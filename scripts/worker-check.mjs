@@ -15,6 +15,7 @@ const assets = path.join(workspace, "assets");
 const base = "http://127.0.0.1:8877";
 const mockBase = "http://127.0.0.1:8879";
 const inspectorPort = 8878;
+const runState = path.join(workspace, 'state-' + Date.now());
 const wrangler = path.join(root, "node_modules", "wrangler", "bin", "wrangler.js");
 const vars = {
   ACCESS_CODES: "synthetic-worker-ci-invite",
@@ -133,6 +134,8 @@ async function configure(name, bindings) {
     main: path.join(root, "worker", "index.ts"),
     compatibility_date: "2026-10-01", compatibility_flags: ["nodejs_compat"],
     assets: { directory: assets, binding: "ASSETS", not_found_handling: "single-page-application", run_worker_first: true },
+    durable_objects: { bindings: [{ name: 'PUBLIC_QUOTA', class_name: 'PublicQuota' }] },
+    migrations: [{ tag: 'public-quota-v1', new_sqlite_classes: ['PublicQuota'] }],
     vars: bindings,
   }, null, 2) + "\n");
   return { varsFile, configFile };
@@ -141,8 +144,8 @@ async function configure(name, bindings) {
 async function startWorker(config) {
   const item = launch("wrangler", [wrangler, "dev", "--local", "--config", config.configFile,
     "--env-file", config.varsFile, "--ip", "127.0.0.1", "--port", "8877",
-    "--inspector-port", String(inspectorPort), "--persist-to", path.join(workspace, "state"), "--log-level", "warn"]);
-  await waitReady(item, base + "/", 401);
+    "--inspector-port", String(inspectorPort), "--persist-to", runState, "--log-level", "warn"]);
+  await waitReady(item, base + "/api/access", 200);
   return item;
 }
 
@@ -195,7 +198,7 @@ async function run() {
 
   await stop(worker);
   await Promise.all([8877, inspectorPort].map(assertPortFree));
-  await startWorker(noKeys);
+  const noKeyWorker = await startWorker(noKeys);
   const noKeyHeaders = await login();
   const before = await (await request(mockBase + "/__seen")).json();
   for (const route of ["chat", "agent", "search", "extract"]) {
@@ -210,6 +213,36 @@ async function run() {
   const after = await (await request(mockBase + "/__seen")).json();
   assert.equal(after.length, before.length, "missing-key routes must not call upstream");
   console.log("PASS missing-key routes made no upstream requests");
+  await stop(noKeyWorker);
+  await Promise.all([8877, inspectorPort].map(assertPortFree));
+  const publicConfig = await configure('public', { ...vars, ACCESS_MODE: 'public', ACCESS_CODES: '', PUBLIC_DAILY_MODEL_CALLS: '1', PUBLIC_DAILY_SEARCH_CALLS: '1', AGENT_PER_HOUR: '100' });
+  const publicWorker = await startWorker(publicConfig);
+  const landing = await request(base + '/'); const landingText = await landing.text();
+  assert.equal(landing.status, 200); assert.ok(landingText.includes('无需邀请码')); assert.ok(!landingText.includes('name="code"'));
+  console.log('PASS public landing needs no invitation code');
+  const admitted = await request(base + '/__notice', { method: 'POST', redirect: 'manual', body: new URLSearchParams({ notice: NOTICE_VERSION }) });
+  const publicCookie = (admitted.headers.get('set-cookie') || '').split(';')[0];
+  assert.ok(publicCookie.startsWith('pf_session=p.'));
+  const publicHeaders = { Cookie: publicCookie, 'Content-Type': 'application/json' };
+  console.log('PASS public notice admits an anonymous visitor');
+  const firstModel = await request(base + '/api/chat', { method: 'POST', headers: publicHeaders, body: JSON.stringify({ messages: [{ role: 'user', content: 'synthetic budget test' }] }) });
+  assert.equal((await firstModel.json()).ok, true);
+  const secondModel = await request(base + '/api/agent', { method: 'POST', headers: { ...publicHeaders, Accept: 'text/event-stream' }, body: JSON.stringify({ tools: false, messages: [{ role: 'user', content: 'synthetic budget test' }] }) });
+  assert.equal(secondModel.status, 429); assert.match(await secondModel.text(), /今日共享模型/);
+  console.log('PASS durable shared model cap applies across chat and SSE');
+  const firstSearch = await request(base + '/api/search', { method: 'POST', headers: publicHeaders, body: JSON.stringify({ query: 'synthetic patent' }) });
+  assert.equal((await firstSearch.json()).ok, true);
+  const secondSearch = await request(base + '/api/extract', { method: 'POST', headers: publicHeaders, body: JSON.stringify({ url: 'https://example.com/a' }) });
+  const searchDenied = await secondSearch.json(); assert.equal(searchDenied.ok, false); assert.match(searchDenied.detail, /今日共享检索/);
+  console.log('PASS durable shared search cap includes page extraction');
+  assert.equal((await request(base + '/', { headers: publicHeaders })).status, 200);
+  console.log('PASS exhausted shared quota does not block page access');
+  await stop(publicWorker);
+  await Promise.all([8877, inspectorPort].map(assertPortFree));
+  await startWorker(publicConfig);
+  const afterRestart = await request(base + '/api/chat', { method: 'POST', headers: publicHeaders, body: JSON.stringify({ messages: [{ role: 'user', content: 'restart cannot reset usage' }] }) });
+  const restartDenied = await afterRestart.json(); assert.equal(restartDenied.ok, false); assert.match(restartDenied.detail, /今日共享模型/);
+  console.log('PASS durable quota survives restarting the Worker runtime');
 }
 
 try {

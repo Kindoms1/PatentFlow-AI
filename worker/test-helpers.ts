@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { checkCode, issueCookie } from "./gate.ts";
+import { checkCode, issueCookie, publicAccess } from "./gate.ts";
 import worker from "./index.ts";
 
 type Env = Parameters<typeof worker.fetch>[1];
@@ -25,7 +25,7 @@ export function context() {
 }
 
 export async function authenticated(path: string, env: Env, init: RequestInit = {}): Promise<Request> {
-  const tag = await checkCode(env, env.ACCESS_CODES!);
+  const tag = publicAccess(env) ? crypto.randomUUID().replaceAll('-', '').slice(0, 12) : await checkCode(env, env.ACCESS_CODES!);
   assert.ok(tag);
   const headers = new Headers(init.headers);
   headers.set("Cookie", (await issueCookie(env, tag, true)).split(";")[0]);

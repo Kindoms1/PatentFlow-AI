@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
+  <title id="title">PatentFlow AI — 从技术主题到可编辑的专利初稿</title>
+  <desc id="desc">开源专利撰写工作台，包含资料阅读、检索对比、图文生成和 Word 导出。</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#11243e"/><stop offset="1" stop-color="#153e62"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#7ae1ff"/><stop offset="1" stop-color="#99b8ff"/></linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#93c6ea" stroke-opacity=".07"/></pattern>
+  </defs>
+  <rect width="1200" height="260" rx="22" fill="url(#bg)"/>
+  <rect width="1200" height="260" rx="22" fill="url(#grid)"/>
+  <circle cx="1100" cy="32" r="176" fill="#43b4ff" fill-opacity=".07"/>
+  <circle cx="920" cy="242" r="150" fill="#7d93ff" fill-opacity=".06"/>
+  <g font-family="Segoe UI, PingFang SC, Microsoft YaHei, sans-serif">
+    <rect x="42" y="31" width="202" height="25" rx="12" fill="#c2e8ff" fill-opacity=".1" stroke="#a3d9fc" stroke-opacity=".2"/>
+    <text x="57" y="48" fill="#b5dff8" font-size="11" letter-spacing="1.7">OPEN SOURCE · APACHE-2.0</text>
+    <text x="42" y="115" fill="white" font-size="44" font-weight="700">Patent<tspan fill="url(#accent)">Flow AI</tspan></text>
+    <text x="44" y="152" fill="#c8dbec" font-size="18">从一个技术主题，到可编辑、可复核的专利初稿。</text>
+    <text x="44" y="211" fill="#9db9d2" font-size="13">PUBLIC DEMO / BRING YOUR OWN MODEL / SELF-HOSTED</text>
+    <g font-size="14" fill="#e8f5ff">
+      <rect x="695" y="57" width="210" height="64" rx="13" fill="#163b59" stroke="#689fc5" stroke-opacity=".4"/>
+      <text x="715" y="83" fill="#6ccfe9" font-size="11">01 · MATERIALS</text><text x="715" y="106">资料阅读与技术主题</text>
+      <rect x="926" y="57" width="230" height="64" rx="13" fill="#163b59" stroke="#689fc5" stroke-opacity=".4"/>
+      <text x="946" y="83" fill="#6ccfe9" font-size="11">02 · RESEARCH</text><text x="946" y="106">检索线索与特征对比</text>
+      <rect x="695" y="141" width="210" height="64" rx="13" fill="#163b59" stroke="#689fc5" stroke-opacity=".4"/>
+      <text x="715" y="167" fill="#a7baff" font-size="11">03 · DRAFT</text><text x="715" y="190">说明书、权利要求与附图</text>
+      <rect x="926" y="141" width="230" height="64" rx="13" fill="#163b59" stroke="#689fc5" stroke-opacity=".4"/>
+      <text x="946" y="167" fill="#a7baff" font-size="11">04 · REVIEW &amp; EXPORT</text><text x="946" y="190">继续修改 · DOCX / ZIP 导出</text>
+    </g>
+  </g>
+</svg>

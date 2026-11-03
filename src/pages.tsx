@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useListMotion } from "./fx.tsx";
 import { LEGAL_NOTES, PUBLICATIONS, STAGE_LABEL, activeCase, searchPublications } from "./model.ts";
 import type { PatentCase, SearchScope } from "./model.ts";
-import { activateProvider, importCcSwitch, listCcSwitch, listProviders, removeProvider, searchAny, testProvider } from "./provider-api.ts";
+import { activateProvider, getAccessPolicy, importCcSwitch, listCcSwitch, listProviders, removeProvider, searchAny, testProvider } from "./provider-api.ts";
 import type { CcLocalProvider } from "./provider-api.ts";
 import type { PublicProvider } from "./provider-api.ts";
 import { ImportPanel } from "./import-panel.tsx";
@@ -512,6 +512,7 @@ export function ModelsPage({ embedded = false }: { embedded?: boolean } = {}) {
           });
         }}
       /> : null}
+      {getAccessPolicy()?.mode === 'public' ? <p className="public-quota-note">公开体验 · 无需邀请码。全站每日共享模型 {getAccessPolicy()?.dailySharedModelCalls} 次、检索 {getAccessPolicy()?.dailySharedSearchCalls} 次上游调用，北京时间零点重置。一键生成会调用多次；个人模型 Key 不占共享模型额度。</p> : null}
       {managedOnly ? <PersonalModelsPanel onChanged={() => void reload()} /> : null}
       {ready ? (
         <>
