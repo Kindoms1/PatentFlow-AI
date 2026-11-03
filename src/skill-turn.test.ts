@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildChatMessages, clipText, defaultPrompt, dialogHasMaterial, packMaterials, parseSlash, detectReadRequest } from "./skill-turn.ts";
 import type { ChatMessage } from "./model.ts";
+import { READ_SYSTEM } from "./patent-skill.ts";
 
 const slash = parseSlash("/挖点 这份论文有没有发明点");
 assert.equal(slash.intent, "ideas");
@@ -86,4 +87,23 @@ test("detectReadRequest routes summaries and section questions, not writing", ()
     "Draft claims from this summary",
     "这个方案能不能申请专利？",
   ]) assert.equal(detectReadRequest(text), false, text);
+});
+
+test("read-only prompts isolate the reading task from invention and domain guidance", () => {
+  const request = '只阅读附件，用两句话概述技术内容。不要联网，也不要生成专利全文或候选发明点。';
+  const built = buildChatMessages({ intent: 'read', userText: request, materials: [{ name: 'note.txt', kind: 'text', text: '电解液中添加成膜添加剂，实验室尚未测定其浓度。' }], history: [chatMsg('user', '之前讨论了添加剂方案'), chatMsg('assistant', '之前的推测不是附件证据')], tools: false });
+  assert.equal(built[0].content, READ_SYSTEM);
+  assert.match(built[0].content, /两句话时只给两句话/);
+  assert.match(built[0].content, /不默认上传材料已经公开/);
+  assert.match(built[0].content, /此前助手提出的假设/);
+  const prompt = built.at(-1)?.content || '';
+  assert.ok(prompt.endsWith(request));
+  assert.match(prompt, /实验室尚未测定其浓度/);
+  assert.doesNotMatch(prompt, /所属领域常规的取值范围|pending|把附件当公开文本|对发明人可能的启发/);
+  assert.equal(built.length, 4, 'preserve dialogue references without treating them as source evidence');
+});
+
+test("default reading requests do not silently ask for invention proposals", () => {
+  assert.doesNotMatch(defaultPrompt('read', true), /转化成发明点|候选/);
+  assert.doesNotMatch(defaultPrompt('read', false), /公开文本/);
 });

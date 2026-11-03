@@ -48,6 +48,13 @@ test("environmentBlock states the date, task, tools and materials", () => {
   assert.match(block, /《交底.docx》（5 字）/);
 });
 
+test("reading environment never asks for invented ranges or state metadata", () => {
+  const block = environmentBlock({ intent: 'read', materials: [], turns: 0, tools: false });
+  assert.match(block, /未记载的信息说明未记载/);
+  assert.match(block, /遵守用户指定的长度与格式/);
+  assert.doesNotMatch(block, /常规的取值范围|结尾 json 的 pending/);
+});
+
 test("selectMaterial labels pages, ignores English stop words and favours the asked-for section", () => {
   const pages = Array.from({ length: 9 }, (_, index) => {
     const no = index + 1;

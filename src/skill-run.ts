@@ -197,7 +197,7 @@ export async function runPatentTurn(input: {
     return;
   }
   if (!result.ok || !result.text) {
-    if (corpus.length >= 40) {
+    if (intent !== "read" && corpus.length >= 40) {
       const local = extractFacts(corpus, materials[0]?.name || "材料").map((fact) => ({
         statement: fact.statement,
         kind: fact.kind,
@@ -210,7 +210,9 @@ export async function runPatentTurn(input: {
       caseId: input.caseId,
       role: "assistant",
       text: `当前模型没有完成这一步（${result.detail}）。${
-        corpus.length >= 40
+        intent === "read"
+          ? "未更改案件事实、候选点或申请文件；请稍后重试解读。"
+          : corpus.length >= 40
           ? "已改用本地规则整理事实，来源和推断仍然分开。"
           : /ECONNREFUSED|ENOTFOUND|ETIMEDOUT|fetch failed/i.test(String(result.detail ?? ""))
             ? "连不上模型接口：请在「设置」里检查接口地址和网络，或换一个已配置密钥的模型，然后再发一句。"
@@ -220,6 +222,12 @@ export async function runPatentTurn(input: {
     return;
   }
   const parsed = parseSkillReply(result.text);
+  // Read-only is enforced here, not just in the prompt. Even an unexpected
+  // metadata block cannot rename the case, add facts/ideas or trigger search.
+  if (intent === "read") {
+    input.dispatch({ type: "chat-note", caseId: input.caseId, role: "assistant", text: parsed.reply });
+    return;
+  }
   const facts = groundFacts(parsed.facts, corpus);
   if (parsed.title) input.dispatch({ type: "rename-case", caseId: input.caseId, title: parsed.title });
   if (facts.length > 0) input.dispatch({ type: "merge-facts", caseId: input.caseId, sourceLabel: result.model || materials[0]?.name || "模型", facts });

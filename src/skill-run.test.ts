@@ -89,6 +89,46 @@ test("ideas turn asks the agent without tools and falls back to local facts on f
   assert.ok(last && last.type === "chat-note" && last.role === "assistant" && last.text.includes("模型服务暂时不可用"));
 });
 
+test("read-only replies cannot mutate case state or run a fallback search", async () => {
+  const calls: Array<{ url: string; body: { tools?: boolean } }> = [];
+  const original = globalThis.fetch;
+  const actions: Action[] = [];
+  const reply = '附件描述成膜添加剂。没有给出实验数据。';
+  const metadata = { title: '不应重命名', facts: [{ statement: '不应加入的推测浓度参数', kind: 'parameter', origin: 'inference' }], patentPoints: [{ title: '不应新增的候选方案' }], searchQueries: ['不应发出的检索词'] };
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init?.body || '{}')) });
+    return ndjsonResponse([{ type: 'done', text: reply + '\n```json\n' + JSON.stringify(metadata) + '\n```', sources: [], model: 'mock-model' }]);
+  }) as typeof fetch;
+  try {
+    await runPatentTurn({ caseId: 'read-case', userText: '只阅读附件，用两句话概述，不要联网', intent: 'read', materials: [{ name: 'note.txt', kind: 'text', text: '附件描述一种成膜添加剂，未给出实验数据。' }], recordUser: true, dispatch: action => actions.push(action) });
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, '/api/agent');
+  assert.equal(calls[0].body.tools, false);
+  assert.ok(actions.every(action => action.type === 'chat-note'), 'reading must not alter facts, ideas, titles or draft state');
+  const last = actions.at(-1);
+  assert.ok(last?.type === 'chat-note' && last.role === 'assistant');
+  assert.equal(last.text, reply);
+});
+
+test("failed read-only requests do not extract fallback facts", async () => {
+  const original = globalThis.fetch;
+  const actions: Action[] = [];
+  globalThis.fetch = (async () => ndjsonResponse([{ type: 'error', detail: '测试服务不可用', status: 503 }])) as typeof fetch;
+  try {
+    await runPatentTurn({ caseId: 'read-case', userText: '概述附件', intent: 'read', materials: [{ name: 'note.txt', kind: 'text', text: '采用水流冲击叶轮，经曲柄连杆带动刮板，对倾斜格栅进行清洁，输出干净水流，无需外接电源。'.repeat(3) }], recordUser: false, dispatch: action => actions.push(action) });
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.ok(actions.every(action => action.type === 'chat-note'));
+  const last = actions.at(-1);
+  assert.ok(last?.type === 'chat-note' && last.role === 'assistant');
+  assert.match(last.text, /未更改案件事实/);
+  assert.doesNotMatch(last.text, /已改用本地规则整理事实/);
+});
+
 const CHAT_DESCRIPTION = "一种雨水井截污装置，包括井体、设在进水口下方的格栅，以及沿格栅表面往复运动的刮板；下泄水流冲击叶轮，叶轮经曲柄连杆带动刮板刮扫格栅，无需外接电源。";
 
 test("conversationMaterial keeps only the inventor's own chat lines", () => {

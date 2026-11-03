@@ -1,4 +1,4 @@
-import { SKILL_SYSTEM } from "./patent-skill.ts";
+import { READ_SYSTEM, SKILL_SYSTEM } from "./patent-skill.ts";
 import { INVENTION_SYSTEM, buildDraftPrompt } from "./invention-draft.ts";
 import type { PriorArtRef } from "./invention-draft.ts";
 import { detectDomain, domainHint } from "./patent-library.ts";
@@ -53,7 +53,7 @@ const INTENT_TASK: Record<SlashIntent, string> = {
   ideas: "对话挖发明点。先给 3 到 5 个候选点，每点写清技术问题、核心特征、效果、待确认事项。材料没有的实验、参数、效果不要编。每次最多问两个关键问题，等发明人选定后再成稿。",
   disclosure: "按交底技能推进：扫描事实、确认边界、预览保护主题。事实不够时不要写成完整交底书。",
   search: "只产出短检索式和查新思路。不要给新颖性或授权结论，不要假装已核验对比文件。",
-  read: "把附件当公开文本或技术资料解读：解决什么问题、核心手段、效果主张、对发明人可能的启发。不要把阅读对象直接写成用户自己的发明。",
+  read: "只解读用户指定的已有资料，严格按本轮要求的范围、长度与格式回答。没有要求展开时，不补充启发、候选点、参考参数或追问；缺失内容如实说明，不进入创作或成稿流程。",
   chart: "把已确认特征与材料做字面对照。找不到就写未找到。这不是法律结论。",
   chat: "顺着发明人上一轮继续。有附件就紧扣附件；没有附件就追问缺的事实，不要编造实验。",
 };
@@ -166,7 +166,7 @@ export function defaultPrompt(intent: SlashIntent, hasMaterial: boolean): string
   if (!hasMaterial) {
     if (intent === "create") return "我想写一件发明专利，但还没定方向。请先问我感兴趣的技术领域或行业，定下来后再去检索专利和论文找创新点。";
     if (intent === "draft") return "我还没有给交底材料。请先问我：要解决的技术问题、现在的做法和缺陷、我的核心步骤和关键参数，材料够了再写发明稿。";
-    if (intent === "read") return "我还没有上传要读的文本。请先提醒我上传 PDF 或粘贴公开文本。";
+    if (intent === "read") return "我还没有上传要读的文本。请先提醒我上传 PDF 或粘贴要解读的文本。";
     if (intent === "search") return "还没有材料。先根据我描述的技术主题给出检索式草案，并问我补充关键词。";
     if (intent === "chart") return "还没有足够材料做对照。请告诉我需要先确认哪些特征。";
     if (intent === "disclosure") return "还没有交底材料。请先问我技术问题、现有做法和想保护的点。";
@@ -177,7 +177,7 @@ export function defaultPrompt(intent: SlashIntent, hasMaterial: boolean): string
   if (intent === "ideas") return "请根据已有材料（附件和对话里我给的内容）挖候选发明点，用对话帮我判断哪一个值得写成发明专利。";
   if (intent === "disclosure") return "请按中国专利交底技能处理已有材料（附件和对话里我给的内容），先整理可写入正文的事实和候选点。";
   if (intent === "search") return "请根据已有材料（附件和对话里我给的内容）给出查新检索式，不要下法律结论。";
-  if (intent === "read") return "请解读已有材料（附件和对话里我给的内容），并指出可能转化成发明点的位置。";
+  if (intent === "read") return "请解读已有材料（附件和对话里我给的内容），概述技术问题、核心方法及原文记载的结论，不补充未记载的内容。";
   if (intent === "chart") return "请把已有材料（附件和对话里我给的内容）里的技术特征做成对照提纲。";
   return "请根据已有材料（附件和对话里我给的内容）继续帮我找发明点和缺的事实。";
 }
@@ -268,7 +268,7 @@ export function buildChatMessages(input: {
   const compact = compactDialog(input.history, { budget: 9000, keep: 10 });
   const history = compact.recent;
   const pursued = input.pursued?.filter((item) => item.trim()) ?? [];
-  const hint = input.intent === "chat" ? "" : domainHint(detectDomain([materialsText(input.materials), input.userText].join("\n")));
+  const hint = input.intent === "chat" || input.intent === "read" ? "" : domainHint(detectDomain([materialsText(input.materials), input.userText].join("\n")));
   const user = [
     `【任务】${INTENT_TASK[input.intent]}`,
     environmentBlock({ intent: input.intent, materials: input.materials, turns: input.history.filter((item) => item.role !== "trace").length, tools: Boolean(input.tools) }),
@@ -281,7 +281,7 @@ export function buildChatMessages(input: {
   ]
     .filter(Boolean)
     .join("\n\n");
-  return [{ role: "system", content: SKILL_SYSTEM }, ...history, { role: "user", content: user }];
+  return [{ role: "system", content: input.intent === "read" ? READ_SYSTEM : SKILL_SYSTEM }, ...history, { role: "user", content: user }];
 }
 
 export function materialsText(materials: PackedMaterial[]): string {

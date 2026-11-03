@@ -257,6 +257,8 @@ export function environmentBlock(input: { intent: string; materials: MaterialLik
     `- 本轮任务：${INTENT_NAME[input.intent] ?? "继续对话"}。`,
     `- 联网：${input.tools ? "本轮可以调用联网检索工具，引用检索结果时给出来源" : "本轮不联网，只依据下面提供的资料、记忆和对话"}。`,
     `- 本轮资料：${files}；此前对话 ${input.turns} 条。`,
-    "- 输出：Markdown；不得编造实验数据、公开号、网址和引用；资料中没有的信息写成所属领域常规的取值范围及其确定方法，需要发明人提供的事项列入结尾 json 的 pending，正文不写任何【待……】占位。",
+    input.intent === "read"
+      ? "- 输出：遵守用户指定的长度与格式，仅解读资料；未记载的信息说明未记载，不补充参考参数、启发或内部状态 JSON。"
+      : "- 输出：Markdown；不得编造实验数据、公开号、网址和引用；资料中没有的信息写成所属领域常规的取值范围及其确定方法，需要发明人提供的事项列入结尾 json 的 pending，正文不写任何【待……】占位。",
   ].join("\n");
 }
