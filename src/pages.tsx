@@ -9,6 +9,7 @@ import { ImportPanel } from "./import-panel.tsx";
 import { LibraryPanel } from "./library-panel.tsx";
 import { CcSwitchShelf } from "./model-menu.tsx";
 import { PersonalModelsPanel } from './personal-models-panel.tsx';
+import { patentWebQuery, patentPageLeads } from './patent-search-scope.ts';
 import { VendorMark } from "./vendor-mark.tsx";
 import { readUserFile } from "./read-user-file.ts";
 import { useStore } from "./store.tsx";
@@ -274,9 +275,13 @@ export function SearchPage() {
             return;
           }
           setWebDetail("正在向 AnySearch 发送检索式。");
-          void searchAny(query).then((found) => {
-            setWebResults(found.results);
-            setWebDetail(found.detail);
+          const webQuery = patentWebQuery(query);
+          void searchAny(webQuery.query, 'cn').then((found) => {
+            const leads = patentPageLeads(found.results, webQuery.scoped);
+            setWebResults(leads);
+            setWebDetail(!found.ok || !webQuery.scoped ? found.detail : leads.length
+              ? leads.length + ' 条专利页面线索，已排除非专利页面；内容与相关性仍需核验。'
+              : '没有获得可用的专利页面线索，请调整关键词。这不表示不存在相关专利。');
           });
         }}
       >
@@ -328,6 +333,7 @@ export function SearchPage() {
         <input type="checkbox" checked={askWeb} onChange={(event) => setAskWeb(event.target.checked)} />
         同时把检索式发给 AnySearch。不会附带案件正文。
       </label>
+      <p className="fine">默认限定 Google Patents 专利页面；可在检索式中用 site: 指定其他来源。网页线索不等于官方查新结论。</p>
       {webDetail ? <p className="fine" role="status">{webDetail}</p> : null}
       {webResults.length > 0 ? (
         <div className="result-list" ref={webMotion}>
