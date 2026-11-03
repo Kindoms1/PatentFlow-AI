@@ -99,15 +99,15 @@ npm ci
 cp .env.example .env.local
 ~~~
 
-只在本机的 .env.local 中填写自己的服务配置，然后启动：
+只在本机的 `.env.local` 中填写自己的服务配置，然后启动：
 
 ~~~sh
 npm run dev -- --host localhost --port 5173
 ~~~
 
-打开 http://localhost:5173/。不要将开发服务器直接暴露到公网。
+打开 [http://localhost:5173/](http://localhost:5173/)。不要将开发服务器直接暴露到公网。
 
-变量名 AGNES_* 为兼容旧配置而保留，并不限于 Agnes。例如 DeepSeek 可使用 AGNES_BASE_URL=https://api.deepseek.com，模型 ID 应填写账号实际可用的名称。模型与检索是独立服务，真实联网检索还需要检索服务配置。
+变量名 `AGNES_*` 为兼容旧配置而保留，并不限于 Agnes。例如 DeepSeek 可使用 `AGNES_BASE_URL=https://api.deepseek.com`，模型 ID 应填写账号实际可用的名称。模型与检索是独立服务，真实联网检索还需要检索服务配置。
 
 ## 验证与质量边界
 
@@ -129,7 +129,7 @@ node scripts/live-pipeline.mjs
 
 测试通过仅表示对应版本和场景通过，不保证所有输入无错误，也不保证发明具有新颖性、创造性或获得授权。[详细验证记录 →](docs/release-validation.md)
 
-GitHub Actions 配置目前保存在 .github/templates/ci.yml，尚未启用远程 CI。具备工作流管理权限后，可复制到 .github/workflows/ci.yml。
+GitHub Actions 配置目前保存在 `.github/templates/ci.yml`，尚未启用远程 CI。具备工作流管理权限后，可复制到 `.github/workflows/ci.yml`。
 
 ## 项目结构
 
