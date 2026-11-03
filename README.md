@@ -8,7 +8,7 @@
 
 **公开访问，无需注册。阅读使用公告后即可进入工作台。**
 
-[在线体验](https://patentflow-ai.patentflow-ai.workers.dev/) · [自行部署](docs/cloudflare-deploy.md) · [配置自己的模型](docs/bring-your-own-model.md) · [验证记录](docs/release-validation.md)
+[在线体验](https://patentflow-ai.patentflow-ai.workers.dev/) · [自行部署](docs/cloudflare-deploy.md) · [配置自己的模型](docs/bring-your-own-model.md) · [验证记录](docs/release-validation.md) · [贡献者](#contributors)
 
 [Apache-2.0](LICENSE) · React + TypeScript · Cloudflare Workers · DOCX / ZIP
 
@@ -147,6 +147,22 @@ GitHub Actions 配置目前保存在 `.github/templates/ci.yml`，尚未启用�
 源码采用 **Apache-2.0**，不包含维护者 API Key、私人发明材料、历史备份或生成文档。第三方依赖、资产和商标保留各自许可与权利。
 
 [贡献指南](CONTRIBUTING.md) · [许可证](LICENSE) · [第三方声明](THIRD_PARTY_NOTICES.md) · [安全报告](SECURITY.md)
+
+<a id="contributors"></a>
+
+## Contributors · 贡献者
+
+感谢以下贡献者对 PatentFlow AI 的参与和支持（按登记顺序排列）：
+
+| 贡献者（邮箱） |
+| --- |
+| `kprxr.660@qq.com` |
+| `thundersark@gmail.com` |
+| `1905099627@qq.com` |
+| `1795925828@qq.com` |
+| `3393205784@qq.com` |
+
+本名单由项目维护者登记；GitHub 侧栏的 Contributors 根据真实提交记录自动统计，与本名单独立。
 
 ---
 
