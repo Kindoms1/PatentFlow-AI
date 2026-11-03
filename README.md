@@ -129,7 +129,7 @@ node scripts/live-pipeline.mjs
 
 测试通过仅表示对应版本和场景通过，不保证所有输入无错误，也不保证发明具有新颖性、创造性或获得授权。[详细验证记录 →](docs/release-validation.md)
 
-GitHub Actions 配置目前保存在 `.github/templates/ci.yml`，尚未启用远程 CI。具备工作流管理权限后，可复制到 `.github/workflows/ci.yml`。
+推送到 `main` 及每个 Pull Request 都会由 GitHub Actions（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)）在 Node.js 24 上自动运行 `npm ci` 与 `npm run verify`。
 
 ## 项目结构
 
