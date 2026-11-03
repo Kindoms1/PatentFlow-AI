@@ -7,7 +7,7 @@ export class PersonalModelError extends Error {}
 export interface PersonalModel extends Omit<PersonalModelInput, 'apiKey'> { id: string; rememberSession: boolean; hasKey: boolean; active: boolean }
 type StoredModel = Omit<PersonalModel, 'hasKey' | 'active'>;
 type StoragePort = { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void };
-export interface ModelSelection { clientProvider?: PersonalModelInput }
+export interface ModelSelection { clientProvider?: PersonalModelInput; siteProviderId?: string }
 function parse(text: string | null): Record<string, unknown> {
   try { const value = JSON.parse(text || '{}'); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch { return {}; }
 }
@@ -19,11 +19,12 @@ export function createPersonalModels(local?: StoragePort, session?: StoragePort,
   const saved = parse(read(local, CONFIG_KEY));
   let profiles: StoredModel[] = Array.isArray(saved.profiles) ? saved.profiles.filter((v): v is StoredModel => !!v && typeof v === 'object' && typeof v.id === 'string' && v.id.startsWith('personal-')).map(v => ({ id: v.id, name: String(v.name || ''), protocol: v.protocol === 'claude' ? 'claude' : 'openai', baseUrl: String(v.baseUrl || ''), model: String(v.model || ''), maxOutputTokens: Number(v.maxOutputTokens) || 32000, tokenParameter: v.tokenParameter === 'max_tokens' || v.tokenParameter === 'max_completion_tokens' ? v.tokenParameter : 'auto', rememberSession: Boolean(v.rememberSession) })) : [];
   let active = typeof saved.active === 'string' && profiles.some(v => v.id === saved.active) ? saved.active : '';
+  let managedId = saved.managedId === 'agnes-secondary' && !active ? 'agnes-secondary' : '';
   const restored = parse(read(session, SESSION_KEY));
   const keys = new Map(profiles.filter(v => v.rememberSession && typeof restored[v.id] === 'string').map(v => [v.id, restored[v.id] as string]));
   const persist = () => {
     try {
-    local?.setItem(CONFIG_KEY, JSON.stringify({ profiles, active }));
+    local?.setItem(CONFIG_KEY, JSON.stringify({ profiles, active, managedId }));
     const remembered = Object.fromEntries(profiles.filter(v => v.rememberSession && keys.has(v.id)).map(v => [v.id, keys.get(v.id)]));
     if (Object.keys(remembered).length) session?.setItem(SESSION_KEY, JSON.stringify(remembered));
     else session?.removeItem(SESSION_KEY);
@@ -32,6 +33,8 @@ export function createPersonalModels(local?: StoragePort, session?: StoragePort,
   };
   return {
     warning: () => warning,
+    managedId: () => managedId,
+    useManaged(id: string) { if (!['css-agent', 'agnes-secondary'].includes(id)) throw new Error('不支持这个站点模型。'); active = ''; managedId = id === 'css-agent' ? '' : id; persist(); },
     list(): PersonalModel[] { return profiles.map(v => ({ ...v, hasKey: keys.has(v.id), active: active === v.id })); },
     save(input: PersonalModelInput, rememberSession: boolean, id?: string): string {
       const previous = profiles.find(v => v.id === id);
@@ -42,9 +45,9 @@ export function createPersonalModels(local?: StoragePort, session?: StoragePort,
       const target = id || 'personal-' + crypto.randomUUID();
       const profile: StoredModel = { id: target, name: input.name.trim(), protocol: input.protocol, baseUrl: input.baseUrl.trim(), model: input.model.trim(), maxOutputTokens: input.maxOutputTokens, tokenParameter: input.tokenParameter, rememberSession };
       profiles = [...profiles.filter(v => v.id !== target), profile];
-      keys.set(target, key); active = target; persist(); return target;
+      keys.set(target, key); active = target; managedId = ''; persist(); return target;
     },
-    use(id = '') { if (id && !profiles.some(v => v.id === id)) throw new Error('模型配置不存在。'); active = id; persist(); },
+    use(id = '') { if (id && !profiles.some(v => v.id === id)) throw new Error('模型配置不存在。'); active = id; managedId = ''; persist(); },
     remove(id: string) { profiles = profiles.filter(v => v.id !== id); keys.delete(id); if (active === id) active = ''; persist(); },
     request(id = active): PersonalModelInput | undefined {
       if (!id) return undefined;
@@ -69,7 +72,12 @@ export function personalModels() {
   return instance;
 }
 
-export function withPersonalModel<T extends object>(body: T): T & { clientProvider?: PersonalModelInput } {
+export function currentModelSelection(): ModelSelection {
   const clientProvider = personalModels().request();
-  return clientProvider ? { ...body, clientProvider } : body;
+  const siteProviderId = personalModels().managedId();
+  return clientProvider ? { clientProvider } : siteProviderId ? { siteProviderId } : {};
+}
+
+export function withPersonalModel<T extends object>(body: T): T & ModelSelection {
+  return { ...body, ...currentModelSelection() };
 }

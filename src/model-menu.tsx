@@ -39,6 +39,7 @@ export function ModelMenu({
   // One click on a provider card uses its current model, or the first listed model when none is set yet.
   // The chips under the card are only for switching to a different model of the same provider.
   const pickSaved = (item: PublicProvider, model?: string) => {
+    if (item.available === false) { notify(item.availabilityDetail || '此模型暂不可用，请选择其他模型。'); return; }
     const target = model || item.model || item.models?.[0] || "";
     if (item.active && target === item.model) {
       onChanged();
@@ -85,14 +86,15 @@ export function ModelMenu({
             pickSaved(item);
           }}
         >
-          <button type="button" className={item.active ? "model-row active" : "model-row"} disabled={!!busy} onClick={() => pickSaved(item)}>
+          <button type="button" className={item.active ? "model-row active" : "model-row"} disabled={!!busy || item.available === false} onClick={() => pickSaved(item)}>
             <VendorMark icon={item.icon} name={item.name} model={item.model} website={item.website} color={item.iconColor} />
             <span>
               <b>{item.model || item.name}</b>
               <small>{item.name} · {item.protocol === "claude" ? "Claude" : "OpenAI"}</small>
             </span>
-            <em>{item.managed ? "管理员配置" : busy.startsWith(item.id) ? "切换中" : item.active ? "使用中" : "一键选用"}</em>
+            <em>{item.available === false ? '暂不可用' : item.managed ? "管理员配置" : busy.startsWith(item.id) ? "切换中" : item.active ? "使用中" : "一键选用"}</em>
           </button>
+          {item.availabilityDetail ? <p className="model-availability">{item.availabilityDetail}</p> : null}
           {!item.managed && (item.models ?? []).length > 1 ? (
             <div className="model-chips">
               {item.models?.map((model) => (

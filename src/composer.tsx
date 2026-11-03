@@ -214,7 +214,7 @@ export function Composer({
           <button className="model-pill" type="button" disabled={busy} aria-haspopup="dialog" aria-expanded={open} title={busy ? "等本轮完成后再切换模型" : "切换模型（点外面或按 Esc 关闭）"} onClick={toggleMenu}>
             <VendorMark icon={active?.icon} name={active?.name} model={active?.model} website={active?.website} color={active?.iconColor} size={16} />
             {appearance === "harness" ? (active?.model || active?.name || "选择模型") : active ? active.name : "选择模型"}
-            {active?.personal ? <span className="model-source">{active.hasKey ? '个人 Key' : '待填 Key'}</span> : active?.managed ? <span className="model-source">站点默认</span> : null}
+            {active?.personal ? <span className="model-source">{active.hasKey ? '个人 Key' : '待填 Key'}</span> : active?.managed ? <span className="model-source">{active.available === false ? '暂不可用' : active.id === 'css-agent' ? '站点默认' : '站点预置'}</span> : null}
             {appearance === "harness" ? <Glyph name="chevron" /> : <small>{active?.model || active?.protocol || ""}</small>}
           </button>
           <AnimatePresence>

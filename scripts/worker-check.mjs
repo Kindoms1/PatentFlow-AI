@@ -7,6 +7,7 @@ import net from "node:net";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { NOTICE_VERSION } from '../src/site-info.ts';
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const workspace = path.join(root, ".tmp-library", "worker-mock");
@@ -146,7 +147,7 @@ async function startWorker(config) {
 }
 
 async function login() {
-  const response = await request(base + "/__access", { method: "POST", redirect: "manual", body: new URLSearchParams({ code: vars.ACCESS_CODES }) });
+  const response = await request(base + "/__access", { method: "POST", redirect: "manual", body: new URLSearchParams({ code: vars.ACCESS_CODES, notice: NOTICE_VERSION }) });
   assert.equal(response.status, 303);
   const cookie = (response.headers.get("set-cookie") || "").split(";")[0];
   assert.ok(cookie.startsWith("pf_session="));

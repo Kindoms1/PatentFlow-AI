@@ -536,10 +536,15 @@ function ProviderGroup({ title, items, busy, setBusy, reload, notify }: { title:
         <article key={item.id} className="panel">
           <header className="panel-head">
             <h2 className="provider-title"><VendorMark icon={item.icon} name={item.name} model={item.model} website={item.website} color={item.iconColor} />{item.name}</h2>
-            <span className={item.hasKey ? "judge judge-明确包含" : "judge judge-待确认"}>{item.managed ? item.hasKey ? "管理员已配置" : "待管理员配置" : item.hasKey ? "密钥已就位" : "缺少密钥"}</span>
+            <span className={item.hasKey && item.available !== false ? "judge judge-明确包含" : "judge judge-待确认"}>{item.available === false ? '暂不可用' : item.managed ? item.hasKey ? "管理员已配置" : "待管理员配置" : item.hasKey ? "密钥已就位" : "缺少密钥"}</span>
           </header>
           <p>{item.role === "search" ? "检索工具" : item.protocol === "openai" ? "OpenAI 协议" : "Claude 协议"}{item.active ? " · 当前模型" : ""}</p>
           <p className="fine">{item.managed ? "由管理员统一配置（只读）" : `${item.website || "未填网站"} · ${item.baseUrl || "未填接口"}`}{item.model ? ` · ${item.model}` : ""}</p>
+          {item.availabilityDetail ? <p className="model-availability">{item.availabilityDetail}{item.checkedAt ? ' 核验时间：' + formatTime(item.checkedAt) : ''}</p> : null}
+          {item.managed && item.role === 'model' ? <div className="composer-bar">
+            <button type="button" className="btn ghost" disabled={busy !== '' || item.active || item.available === false || !item.hasKey} onClick={() => { setBusy('activate-' + item.id); void activateProvider(item.id).then(reload).catch(() => notify('切换未完成。')).finally(() => setBusy('')); }}>{item.available === false ? '暂不可用于生成' : item.active ? '使用中' : busy === 'activate-' + item.id ? '切换中…' : '使用此预置模型'}</button>
+            <button type="button" className="btn ghost" disabled={busy !== '' || !item.hasKey} onClick={() => { setBusy('test-' + item.id); void testProvider(item.id).then(result => notify(item.name + '：' + result.detail)).catch(() => notify('连接测试未完成，请稍后重试。')).finally(() => setBusy('')); }}>{busy === 'test-' + item.id ? '测试中…' : '重新测试连接'}</button>
+          </div> : null}
           {!item.managed ? <p className="fine">{item.keyHint}</p> : null}
           {!item.managed ? <div className="composer-bar">
             {item.role === "model" ? (

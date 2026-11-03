@@ -8,6 +8,7 @@ import { runPatentTurn } from '../src/skill-run.ts';
 import { preparePackageZip } from '../src/export-package.ts';
 import { readZip } from '../src/zip.ts';
 import { formalCheck, parseApplication } from '../src/cnipa-format.ts';
+import { NOTICE_VERSION } from '../src/site-info.ts';
 
 const base = new URL(process.env.BASE || 'http://127.0.0.1:8787');
 const local = ['127.0.0.1', 'localhost'].includes(base.hostname);
@@ -17,7 +18,7 @@ if (!code) throw new Error('Set CODE for the explicitly selected test site.');
 const out = path.resolve(process.env.TEST_OUTPUT || '.tmp-library/release-live');
 fs.mkdirSync(out, { recursive: true });
 const nativeFetch = globalThis.fetch;
-const login = await nativeFetch(new URL('/__access', base), { method:'POST', body:new URLSearchParams({code}), redirect:'manual' });
+const login = await nativeFetch(new URL('/__access', base), { method:'POST', body:new URLSearchParams({code, notice:NOTICE_VERSION}), redirect:'manual' });
 const cookie = (login.headers.get('set-cookie') || '').split(';')[0];
 if (!cookie.startsWith('pf_session=')) throw new Error('Test-site login failed.');
 const metrics = [];

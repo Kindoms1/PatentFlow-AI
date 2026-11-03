@@ -1,6 +1,7 @@
 // End-to-end check of the Worker running under "wrangler dev".
 // BASE=http://127.0.0.1:8787 MOCK=1 node scripts/worker-smoke.mjs   (invite code read from .dev.vars)
 import fs from "node:fs";
+import { NOTICE_VERSION } from '../src/site-info.ts';
 
 const BASE = process.env.BASE || "http://127.0.0.1:8787";
 const MOCK = process.env.MOCK === "1";
@@ -34,7 +35,7 @@ r = await fetch(BASE + "/api/providers");
 check("未登录调用 API -> 401", r.status === 401, r.status);
 r = await fetch(BASE + "/__access", { method: "POST", body: new URLSearchParams({ code: "wrong-code-123" }), redirect: "manual" });
 check("错误邀请码不发 cookie", r.status === 303 && !r.headers.get("set-cookie"), r.status);
-r = await fetch(BASE + "/__access", { method: "POST", body: new URLSearchParams({ code: CODE }), redirect: "manual" });
+r = await fetch(BASE + "/__access", { method: "POST", body: new URLSearchParams({ code: CODE, notice: NOTICE_VERSION }), redirect: "manual" });
 const setCookie = r.headers.get("set-cookie") || "";
 const cookie = setCookie.split(";")[0];
 check("正确邀请码 -> HttpOnly cookie", r.status === 303 && cookie.startsWith("pf_session=") && /HttpOnly/i.test(setCookie), r.status);

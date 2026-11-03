@@ -20,7 +20,7 @@ export function PersonalModelsPanel({ onChanged }: { onChanged: () => void }) {
   return <section className="personal-models" aria-label="我的 AI 模型">
     <header><div><h3>我的 AI 模型 <span>BYOK</span></h3><p className="fine">用自己的服务与额度，配置只对当前浏览器可见。</p></div></header>
     <p className="byok-privacy">Key 默认仅留在当前页面内存；测试或生成时经本站网关转发给你指定的模型服务，不写入本站配置或案件导出。请使用低额度专用 Key，并确认你信任本站与目标服务。</p>
-    <button type="button" className="btn ghost" disabled={!!busy || !profiles.some(p => p.active)} onClick={() => { personalModels().use(); setStatus('已切回站点默认模型。'); changed(); }}>使用站点默认模型</button>
+    <button type="button" className="btn ghost" disabled={!!busy || (!profiles.some(p => p.active) && !personalModels().managedId())} onClick={() => { personalModels().use(); setStatus('已切回站点默认模型。'); changed(); }}>使用站点默认模型</button>
     {profiles.map(profile => <article key={profile.id} className={'byok-profile' + (profile.active ? ' active' : '')}>
       <div><strong>{profile.name}</strong><span className="byok-badge">{profile.active ? '当前使用' : '个人配置'}</span></div>
       <p>{profile.model}</p><small>{profile.baseUrl} · {profile.hasKey ? profile.rememberSession ? '本标签页记住 Key' : 'Key 仅存内存' : '需重新填 Key'}</small>

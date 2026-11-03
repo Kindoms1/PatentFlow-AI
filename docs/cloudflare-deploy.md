@@ -35,6 +35,9 @@ node scripts/live-pipeline.mjs
 
 ## 使用边界
 
+- 当前公告内容与版本在 src/site-info.ts。修改公告后应更新 NOTICE_VERSION；新旧访客均需知悉当前版本后进入工作台，旧邀请码仍有效。脚本登录需同时提交 notice 字段，值为当前公告版本。项目附带的测试脚本已使用同一版本常量。
+- 可以单独添加 Agnes 站点预置服务，使用 AGNES_SECONDARY_* 独立 secrets；不要覆盖已有默认模型或轮换 SESSION_SECRET。先验证云端短调用和实际业务，再设置启用状态。见 [自带模型与站点预置说明](bring-your-own-model.md)。
+
 - `AGENT_PER_HOUR` 和 `TOOLS_PER_HOUR` 是单 isolate 内存限流；不能当作全局账单上限。
 - `MAX_OUTPUT_TOKENS` 是每次上游调用的上限；一键生成会多次调用模型。
 - 修改/删除某个邀请码后，该邀请码之前发出的会话也会失效。轮换 `SESSION_SECRET` 会让全部用户退出。

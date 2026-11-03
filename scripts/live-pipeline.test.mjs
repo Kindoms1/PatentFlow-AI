@@ -5,6 +5,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
+import { NOTICE_VERSION } from '../src/site-info.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 
@@ -91,10 +92,10 @@ async function runFixture(scenario) {
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
   const execute = new AsyncFunction(
     'fs', 'path', 'parseEnv', 'seed', 'reduce', 'runPatentTurn', 'preparePackageZip',
-    'readZip', 'formalCheck', 'parseApplication', 'process', 'globalThis', 'console', source,
+    'readZip', 'formalCheck', 'parseApplication', 'process', 'globalThis', 'console', 'NOTICE_VERSION', source,
   );
   await execute(fixtureFs, path, () => ({}), seed, reduce, runPatentTurn, preparePackageZip,
-    readZip, formalCheck, parseApplication, fixtureProcess, fixtureGlobal, { log: value => logs.push(String(value)) });
+    readZip, formalCheck, parseApplication, fixtureProcess, fixtureGlobal, { log: value => logs.push(String(value)) }, NOTICE_VERSION);
   const reportText = saved.get('report.json');
   return {
     report: reportText ? JSON.parse(reportText) : null,

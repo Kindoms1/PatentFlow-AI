@@ -7,7 +7,8 @@
  */
 import { cleanMessages, handleAgentRoute } from "../server/agent-routes.ts";
 import { inferVendor, vendorColor } from "../src/vendor.ts";
-import { SECURITY, checkCode, clearCookie, gateConfigured, gatePage, issueCookie, redirect, session } from "./gate.ts";
+import { SECURITY, checkCode, clearCookie, gateConfigured, gatePage, hasCurrentNotice, issueCookie, noticePage, redirect, session } from "./gate.ts";
+import { NOTICE_VERSION } from '../src/site-info.ts';
 import type { GateEnv } from "./gate.ts";
 import { RateLimiter } from "./rate-limit.ts";
 import { acceptsEventStream, proxyAgentStream } from "./stream-proxy.ts";
@@ -22,6 +23,11 @@ interface Env extends GateEnv, ByokEnv {
   AGNES_BASE_URL?: string;
   AGNES_MODEL?: string;
   AGNES_WEBSITE?: string;
+  AGNES_SECONDARY_API_KEY?: string;
+  AGNES_SECONDARY_BASE_URL?: string;
+  AGNES_SECONDARY_MODEL?: string;
+  AGNES_SECONDARY_STATUS?: string;
+  AGNES_SECONDARY_CHECKED_AT?: string;
   ANYSEARCH_API_KEY?: string;
   ANYSEARCH_BASE_URL?: string;
   ANYSEARCH_WEBSITE?: string;
@@ -37,7 +43,7 @@ interface Ctx {
 
 const HOUR = 3_600_000;
 const limiter = new RateLimiter();
-const ROUTES = new Set(["/api/agent", "/api/chat", "/api/search", "/api/extract", "/api/radar/run", '/api/byok/test', '/api/byok/models']);
+const ROUTES = new Set(["/api/agent", "/api/chat", "/api/search", "/api/extract", "/api/radar/run", '/api/byok/test', '/api/byok/models', '/api/site-models/test']);
 const LOCKED = "线上版的模型与密钥由管理员统一配置，不能在这里修改。";
 
 function json(status: number, body: unknown): Response {
@@ -121,6 +127,12 @@ function storeFromEnv(env: Env) {
         secret: env.ANYSEARCH_API_KEY || "",
         auth: "bearer" as const,
       },
+      ...(env.AGNES_SECONDARY_API_KEY ? [{
+        id: 'agnes-secondary', name: 'Agnes', protocol: 'openai' as const, role: 'model',
+        baseUrl: env.AGNES_SECONDARY_BASE_URL || 'https://apihub.agnes-ai.com/v1', website: 'https://www.agnes-ai.com/',
+        model: env.AGNES_SECONDARY_MODEL || 'agnes-2.5-flash', models: [] as string[],
+        secret: env.AGNES_SECONDARY_API_KEY, auth: 'bearer' as const,
+      }] : []),
     ],
   };
 }
@@ -147,6 +159,10 @@ function publicProviders(env: Env) {
         keyHint: provider.secret ? "已由管理员在服务端配置" : "未配置密钥",
         active: provider.role === "model" && provider.id === store.activeModelId,
         managed: true,
+        available: provider.id !== 'agnes-secondary' || env.AGNES_SECONDARY_STATUS === 'ready',
+        availabilityDetail: provider.id === 'agnes-secondary' && env.AGNES_SECONDARY_STATUS !== 'ready'
+          ? env.AGNES_SECONDARY_STATUS === 'rate_limited' ? 'Agnes 已配置在服务器，但连续调用出现 429 限流。短连接成功不代表全套生成稳定，目前暂不开放生成；其他模型不受影响。' : 'Agnes 已配置在服务器，待云端验证通过后启用；目前不会切换到此服务。' : '',
+        checkedAt: provider.id === 'agnes-secondary' ? env.AGNES_SECONDARY_CHECKED_AT || '' : '',
       };
     }),
   };
@@ -164,6 +180,7 @@ function sanitize(raw: string, env: Env): string | null {
   }
   delete body.providerId;
   delete body.clientProvider;
+  delete body.siteProviderId;
   const cap = (key: string, max: number) => {
     if (typeof body[key] === "number") body[key] = Math.min(Math.max(0, body[key] as number), max);
   };
@@ -298,7 +315,7 @@ async function api(request: Request, path: string, who: string, env: Env, ctx: C
   const origin = request.headers.get("Origin");
   if (origin && origin !== new URL(request.url).origin) return json(403, { error: "跨站请求被拒绝。" });
 
-  const heavy = path === "/api/agent" || path === "/api/chat" || path.startsWith('/api/byok/');
+  const heavy = path === "/api/agent" || path === "/api/chat" || path.startsWith('/api/byok/') || path === '/api/site-models/test';
   const limit = heavy ? num(env.AGENT_PER_HOUR, 30) : num(env.TOOLS_PER_HOUR, 120);
   if (!limiter.allow((heavy ? "llm:" : "tool:") + who, limit, HOUR)) return json(429, { error: "调用太频繁了，请稍后再试。" });
 
@@ -307,9 +324,25 @@ async function api(request: Request, path: string, who: string, env: Env, ctx: C
   if (buffer instanceof Response) return buffer;
   const raw = new TextDecoder().decode(buffer);
   let selection: unknown;
-  try { selection = (JSON.parse(raw || '{}') as { clientProvider?: unknown })?.clientProvider; } catch { return json(400, { error: '请求格式不对。' }); }
+  let siteProviderId: unknown;
+  try {
+    const parsed = JSON.parse(raw || '{}') as { clientProvider?: unknown; siteProviderId?: unknown };
+    selection = parsed?.clientProvider; siteProviderId = parsed?.siteProviderId;
+  } catch { return json(400, { error: '请求格式不对。' }); }
   let store: RouteStore = storeFromEnv(env);
   let effectiveEnv = env;
+  if (siteProviderId !== undefined || path === '/api/site-models/test') {
+    if (!heavy || selection !== undefined) return json(400, { error: '不能同时指定个人模型和站点模型。' });
+    const provider = store.providers.find(item => item.id === siteProviderId && item.role === 'model' && item.secret);
+    if (!provider) return json(400, { error: '这个站点模型不存在或尚未配置。' });
+    store = { ...store, activeModelId: provider.id };
+    if (path === '/api/site-models/test') {
+      const started = Date.now();
+      const result = await complete(provider, [{ role: 'user', content: '只回复：连接成功' }], { stream: false, maxTokens: Math.min(512, outputTokenCap(env)), timeoutMs: 45000, signal: request.signal, fetchImpl: (input, init) => fetch(input, { ...init, redirect: 'manual' }) });
+      return json(200, { ok: result.ok && Boolean(result.text.trim()), status: result.status, detail: result.ok ? '短连接测试成功，但不代表连续长文或全套生成通过；启用状态仍由管理员决定。' : result.detail, model: provider.model, durationMs: Date.now() - started });
+    }
+    if (provider.id === 'agnes-secondary' && env.AGNES_SECONDARY_STATUS !== 'ready') return json(503, { error: 'Agnes 暂不可用：最近的云端验证尚未通过。请使用站点默认或个人模型；不会自动替你切换。' });
+  }
   if (selection !== undefined || path.startsWith('/api/byok/')) {
     if (!heavy) return json(400, { error: '个人模型配置只能用于模型调用。' });
     const provider = parseByok(selection, env, path === '/api/byok/models');
@@ -324,7 +357,7 @@ async function api(request: Request, path: string, who: string, env: Env, ctx: C
         return json(200, { ok: result.ok, detail: result.detail, models: result.models });
       }
       const started = Date.now();
-      const result = await complete(provider, [{ role: 'user', content: '只回复：连接成功' }], { stream: false, maxTokens: Math.min(512, provider.maxOutputTokens), timeoutMs: 45000, signal: request.signal, fetchImpl });
+      const result = await complete(provider, [{ role: 'user', content: '只回复：连接成功' }], { stream: false, maxTokens: Math.min(512, provider.maxOutputTokens, outputTokenCap(env)), timeoutMs: 45000, signal: request.signal, fetchImpl });
       return json(200, { ok: result.ok && Boolean(result.text.trim()), status: result.status, detail: result.ok ? '连接成功；仅验证短回答，长文与工具能力请另行测试。' : result.detail, model: provider.model, durationMs: Date.now() - started });
     }
   }
@@ -363,14 +396,28 @@ export default {
       const code = typeof value === "string" ? value : "";
       const tag = code ? await checkCode(env, code) : null;
       if (!tag) return redirect("/?e=1");
-      return redirect("/", await issueCookie(env, tag));
+      return redirect("/", await issueCookie(env, tag, form?.get('notice') === NOTICE_VERSION));
     }
     if (path === "/__logout") return redirect("/", clearCookie());
 
     const who = await session(request, env);
+    if (path === '/__notice' && request.method === 'POST') {
+      if (!who) return redirect('/');
+      const origin = request.headers.get('Origin');
+      if (origin && origin !== url.origin) return json(403, { error: '跨站请求被拒绝。' });
+      const body = await readBody(request, 16_384);
+      if (body instanceof Response) return body;
+      const form = await new Response(body, { headers: request.headers }).formData().catch(() => null);
+      if (form?.get('notice') !== NOTICE_VERSION) return noticePage('3');
+      return redirect('/', await issueCookie(env, who, true));
+    }
     if (!who) {
       if (path.startsWith("/api/")) return json(401, { error: "请先输入邀请码。" });
       return gatePage(url.searchParams.get("e"));
+    }
+    if (!hasCurrentNotice(request)) {
+      if (path.startsWith('/api/')) return json(428, { error: '请刷新页面，阅读并确认当前使用公告后再使用。', code: 'NOTICE_REQUIRED', noticeVersion: NOTICE_VERSION });
+      return noticePage();
     }
     if (path.startsWith("/api/")) return api(request, path, who, env, ctx);
 

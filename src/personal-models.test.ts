@@ -32,6 +32,14 @@ test('editing can keep a key without exposing it and switching is per profile', 
 test('personal keys cannot be copied into persisted metadata', () => {
   const store = createPersonalModels(); assert.throws(() => store.save({ ...input, name: input.apiKey }, false), /密钥只能/);
 });
+test('site model choice persists without credentials and does not mix with a personal model', () => {
+  const local = storage(); const session = storage(); const store = createPersonalModels(local, session);
+  store.useManaged('agnes-secondary'); assert.equal(store.managedId(), 'agnes-secondary'); assert.equal(store.request(), undefined);
+  const restored = createPersonalModels(local, session); assert.equal(restored.managedId(), 'agnes-secondary');
+  restored.save(input, false); assert.equal(restored.managedId(), ''); assert.equal(restored.request()?.apiKey, input.apiKey);
+  restored.useManaged('css-agent'); assert.equal(restored.managedId(), ''); assert.equal(restored.request(), undefined);
+  assert.throws(() => restored.useManaged('unknown'));
+});
 test('switching service cannot silently reuse a previous credential', () => {
   const store = createPersonalModels(); const id = store.save(input, false);
   assert.throws(() => store.save({ ...input, baseUrl: 'https://other.example.com', apiKey: '' }, false, id), /API Key/);

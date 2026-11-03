@@ -28,7 +28,7 @@ export async function authenticated(path: string, env: Env, init: RequestInit = 
   const tag = await checkCode(env, env.ACCESS_CODES!);
   assert.ok(tag);
   const headers = new Headers(init.headers);
-  headers.set("Cookie", (await issueCookie(env, tag)).split(";")[0]);
+  headers.set("Cookie", (await issueCookie(env, tag, true)).split(";")[0]);
   return new Request(`https://app.example.test${path}`, { ...init, headers });
 }
 

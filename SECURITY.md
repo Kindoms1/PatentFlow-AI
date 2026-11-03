@@ -9,6 +9,8 @@
 - Case material is stored in the browser. Model operations send selected text to the configured model provider; search and URL extraction send queries/URLs to the configured search provider. Inspect the provider's data policy before using confidential inventions.
 - The Vite development server includes local credential management and CC Switch integration. Bind it to localhost. Do not expose it through a public tunnel as a hosted service. Use the Worker deployment for invited users.
 - Worker invitation cookies are signed and HttpOnly. Removing an invitation code revokes that code's sessions. Rotating SESSION_SECRET signs everyone out.
+- The current notice version is part of the signed session. Previously authenticated visitors retain their login but must acknowledge an updated notice before assets or APIs are available. This is an access-control acknowledgement, not verified identity or a legal electronic signature.
+- Additional site models use separately configured server secrets and a fixed model-ID allowlist. Selecting a site model never accepts a caller-supplied endpoint, overwrites the administrator's default, or silently falls back to another shared key. Disabled models can be explicitly connection-tested under the existing invitation and rate limits.
 - The in-memory request limiter is best-effort per isolate, not a global spending cap. Use restricted production keys and provider-side budget controls.
 - Test keys are never automatically promoted to production. Revoke exposed or completed-test credentials at the provider.
 

@@ -16,6 +16,18 @@ Key 默认仅放在当前页面内存中，刷新后需重新填写。配置名�
 
 ## 接口范围
 
+### 站点预置 Agnes
+
+Agnes 可单独配置为站点预置项，不再只是个人配置表单里的模板。它使用服务器上的独立密钥；默认服务仍保持原配置。访客在自己的浏览器里选择预置项，不影响其他访客，也看不到服务器 Key。
+
+管理员使用 Cloudflare Secrets 设置 AGNES_SECONDARY_API_KEY、AGNES_SECONDARY_BASE_URL、AGNES_SECONDARY_MODEL。AGNES_SECONDARY_STATUS 为 ready 时允许选用；rate_limited 或其他值显示不可用，并阻止生成时静默改用默认模型。AGNES_SECONDARY_CHECKED_AT 可记录最近核验时间。
+
+「重新测试连接」只验证短回复，不会自动改写管理员的启用状态。一次返回 200 不证明连续长文调用稳定；遇到持续 429 或流程失败应保留原默认服务，待确认后再启用。旧 AGNES_API_KEY 变量属于默认服务，可能实际连接 DeepSeek，不应为了添加 Agnes 而覆盖它。
+
+POST /api/site-models/test 接收 siteProviderId；模型调用也可携带 siteProviderId 选择已配置、已启用的站点模型。它不能与个人 clientProvider 同时提交。允许的站点 ID 由服务器固定控制。
+
+### 用户自带服务
+
 - OpenAI Chat Completions 兼容协议：内置 DeepSeek、Agnes、OpenAI、Gemini 兼容接口、通义千问、Kimi、智谱 GLM、硅基流动、OpenRouter 模板。
 - Anthropic Messages：独立协议与 x-api-key 认证，支持文字流式输出与工具调用。
 - 允许手动填写准确的模型 ID，不依赖硬编码型号。模型列表接口不存在或无权限时，仍可手动填写。
@@ -56,4 +68,4 @@ Key 默认仅放在当前页面内存中，刷新后需重新填写。配置名�
 
 ## 本轮真实验证
 
-2026-11-03：DeepSeek 的个人 Key 云端短回复已成功。Agnes 从 Cloudflare 调用仍返回 429 / 1015，因此没有换为默认服务；其模板保留，但不标记为可用保证。完整生成与发布复测结果见 [发布验证记录](release-validation.md)。
+2026-11-03：DeepSeek 的个人 Key 已完成云端生成验收。Agnes 后续已作为独立站点预置接入；本轮短连接曾返回 200，但连续长文调用多次出现 429 / 1015，部分步骤重试后成功，完整生成与修改导出验收未完成。故当前显示暂不可用于生成，不替换原默认服务。完整验证范围见 [发布验证记录](release-validation.md)。

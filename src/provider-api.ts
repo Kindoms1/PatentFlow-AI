@@ -19,6 +19,9 @@ export interface PublicProvider {
   /** Hosted providers are configured by the administrator and are read-only. */
   managed?: boolean;
   personal?: boolean;
+  available?: boolean;
+  availabilityDetail?: string;
+  checkedAt?: string;
 }
 
 export interface CcLocalProvider {
@@ -47,6 +50,7 @@ interface ProviderResponse {
 }
 
 let byokCapability: { enabled: boolean; allowedHosts: string[] } = { enabled: false, allowedHosts: [] };
+let hostedProviders = false;
 export function getByokCapability() { return byokCapability; }
 
 export async function inspectPersonalModel(input: PersonalModelInput, action: 'test' | 'models'): Promise<{ ok: boolean; status?: number; detail: string; models?: string[] }> {
@@ -60,9 +64,13 @@ export async function listProviders(): Promise<PublicProvider[]> {
   if (!response.ok) return [];
   const body = (await response.json()) as ProviderResponse;
   byokCapability = body.byok ?? { enabled: false, allowedHosts: [] };
+  hostedProviders = Boolean(body.providers?.some(item => item.managed));
   const saved = byokCapability.enabled ? personalModels().list() : [];
   const usingPersonal = saved.some(item => item.active);
-  return [...(body.providers ?? []).map(item => ({ ...item, active: usingPersonal ? false : item.active })), ...saved.map(item => ({ id: item.id, name: item.name, protocol: item.protocol, role: 'model' as const, baseUrl: item.baseUrl, website: '', model: item.model, hasKey: item.hasKey, keyHint: item.hasKey ? '本页面密钥已填写' : '需要重新填写密钥', active: item.active, personal: true }))];
+  const managedId = personalModels().managedId();
+  const providers = body.providers ?? [];
+  if (managedId && !providers.some(item => item.id === managedId)) providers.push({ id: managedId, name: 'Agnes（已停用）', protocol: 'openai', role: 'model', baseUrl: '', website: '', model: '', hasKey: false, keyHint: '', active: true, managed: true, available: false, availabilityDetail: '这个站点模型已被管理员停用，请主动选择其他模型。' });
+  return [...providers.map(item => ({ ...item, active: usingPersonal ? false : managedId ? item.id === managedId : item.active })), ...saved.map(item => ({ id: item.id, name: item.name, protocol: item.protocol, role: 'model' as const, baseUrl: item.baseUrl, website: '', model: item.model, hasKey: item.hasKey, keyHint: item.hasKey ? '本页面密钥已填写' : '需要重新填写密钥', active: item.active, personal: true }))];
 }
 
 export async function listCcSwitch(): Promise<{ providers: CcLocalProvider[]; detail: string }> {
@@ -112,7 +120,7 @@ export async function removeProvider(id: string): Promise<void> {
 
 export async function activateProvider(id: string): Promise<void> {
   if (id.startsWith('personal-')) { personalModels().use(id); return; }
-  if (byokCapability.enabled) { personalModels().use(); return; }
+  if (hostedProviders) { personalModels().useManaged(id); return; }
   await fetch("/api/providers/activate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -121,12 +129,13 @@ export async function activateProvider(id: string): Promise<void> {
 }
 
 export async function testProvider(id: string): Promise<{ ok: boolean; status: number; detail: string }> {
-  const response = await fetch("/api/providers/test", {
+  const response = await fetch(hostedProviders ? '/api/site-models/test' : '/api/providers/test', {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id }),
+    body: JSON.stringify(hostedProviders ? { siteProviderId: id } : { id }),
   });
-  return (await response.json()) as { ok: boolean; status: number; detail: string };
+  const body = await response.json() as { ok?: boolean; status?: number; detail?: string; error?: string };
+  return { ok: response.ok && Boolean(body.ok), status: body.status ?? response.status, detail: body.detail || body.error || '连接测试未完成。' };
 }
 
 export async function addProvider(input: { name: string; protocol: "openai" | "claude"; baseUrl: string; model: string; apiKey: string }): Promise<string | null> {

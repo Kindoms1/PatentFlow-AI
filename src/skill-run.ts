@@ -9,7 +9,7 @@ import { groundFacts, parseSkillReply } from "./patent-skill.ts";
 import { CREATE_TRACE_PREFIX, OUTLINE_MATERIAL_NAME, buildChatMessages, conversationMaterial, draftExtra, materialsText, type PackedMaterial, type SlashIntent } from "./skill-turn.ts";
 import { citedSources, streamAgent } from "./agent-stream.ts";
 import { TOOL_LABEL, type AgentEvent, type AgentSource } from "./agent-events.ts";
-import { personalModels, type ModelSelection } from './personal-models.ts';
+import { currentModelSelection, type ModelSelection } from './personal-models.ts';
 
 /** Intents allowed to reach the web. Digging points, drafting and reading stay inside the user's own materials. */
 export function intentUsesTools(intent: SlashIntent): boolean {
@@ -123,7 +123,7 @@ export async function runPatentTurn(input: {
   // Keep the user's request even when a memory-only key expired after a reload.
   // Freeze this turn's provider: switching settings cannot mix providers mid-draft.
   let selection: ModelSelection;
-  try { selection = { clientProvider: personalModels().request() }; }
+  try { selection = currentModelSelection(); }
   catch (error) { input.dispatch({ type: 'chat-note', caseId: input.caseId, role: 'assistant', text: (error as Error).message }); return; }
   const ask: typeof askModel = (messages, intent, trace, signal) => askModel(messages, intent, trace, signal, selection);
   // “不要问我，直接做”：选题 → 大纲 → 完整申请文件一次跑完，不停下来等发明人。
